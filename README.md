@@ -126,12 +126,27 @@ mercer/
 | DB abstraction | SQLAlchemy 2.0 |
 | Schema graph | networkx |
 | Entity retrieval | rank-bm25 + custom GPU LSH |
-| Caching | Redis (schema) + DuckDB (query results) |
+| Caching | Redis (schema) + DuckDB (audit log) |
 | API backend | FastAPI + uvicorn |
-| Frontend | React + TailwindCSS |
+| Frontend | React + TailwindCSS + CodeMirror |
 | Quantization | bitsandbytes / AutoGPTQ (INT4, FP8) |
 
 **No vector database required** for core functionality. Optional pgvector/Weaviate for supplementary glossary RAG.
+
+---
+
+## Screenshot
+
+> Screenshot coming soon — run `uvicorn app.api.main:app --port 8000` and open `http://localhost:8000` to see the UI.
+
+---
+
+## Built With
+
+- [SGLang](https://github.com/sgl-project/sglang) — high-throughput LLM serving with RadixAttention for prefix caching
+- [FlashInfer](https://github.com/flashinfer-ai/flashinfer) — custom CUDA attention kernels for low inter-token latency
+- [Qwen2.5-Coder](https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct) — SOTA open-weight code model, optimized for SQL generation
+- [Triton](https://github.com/triton-lang/triton) — GPU kernel language for LSH entity matching and result scoring
 
 ---
 
@@ -244,7 +259,14 @@ glossary:
 
 ## Evaluation
 
-Target benchmarks:
+Current benchmark results (AnthropicBackend, DVDRental schema, see [`docs/benchmarks.md`](docs/benchmarks.md)):
+
+| Benchmark | Questions | Execution Accuracy | Avg Latency |
+|---|---|---|---|
+| Regression suite (DVDRental) | 5 | **100%** | 38 ms |
+| Mercer Messy Suite | 10 | **100%** | 47 ms |
+
+Target benchmarks (full pipeline with local model):
 
 | Benchmark | Description | Target |
 |---|---|---|
@@ -258,8 +280,9 @@ Metrics: Execution Accuracy (EX), Reward-based VES (R-VES), Soft F1.
 Run the eval suite:
 
 ```bash
-python scripts/benchmark.py --suite bird --split mini_dev
+python scripts/benchmark.py --suite regression
 python scripts/benchmark.py --suite mercer_messy
+python scripts/benchmark.py --report   # aggregate metrics from audit log
 ```
 
 ---

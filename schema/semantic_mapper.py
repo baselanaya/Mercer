@@ -21,6 +21,7 @@ class SemanticMapper:
         self._mappings: dict[str, Any] | None = None
 
     def annotate(self, raw: RawSchema) -> AnnotatedSchema:
+        """Merge user-defined descriptions and glossary from mappings.yaml into *raw*."""
         mappings = self._load()
         tables_config: dict[str, Any] = mappings.get("tables", {})
         glossary: dict[str, str] = mappings.get("glossary", {})

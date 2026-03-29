@@ -59,6 +59,7 @@ def create_app(pipeline: MercerPipeline | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+        """Manage application startup (DB + pipeline init) and shutdown (engine dispose)."""
         # ---- startup ----
         if _injected is not None:
             app.state.pipeline = _injected

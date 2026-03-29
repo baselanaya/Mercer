@@ -23,6 +23,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """Log every request with method, path, HTTP status, and wall-clock latency."""
 
     async def dispatch(self, request: Request, call_next: object) -> Response:
+        """Process each request, logging method, path, status, and latency."""
         start = time.perf_counter()
         response: Response = await call_next(request)  # type: ignore[operator]
         latency_ms = round((time.perf_counter() - start) * 1000, 2)
@@ -57,6 +58,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._buckets: dict[str, deque[float]] = defaultdict(deque)
 
     async def dispatch(self, request: Request, call_next: object) -> Response:
+        """Enforce per-IP rate limit; return 429 when the client exceeds the window."""
         ip = request.client.host if request.client else "unknown"
         now = time.monotonic()
         cutoff = now - self._window

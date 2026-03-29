@@ -133,6 +133,7 @@ def _build_reasoning_trace(state: Any) -> dict[str, Any]:
     summary="Translate a natural-language question to SQL and execute it",
 )
 async def post_query(body: QueryRequest, request: Request) -> QueryResponse:
+    """Run the NL→SQL pipeline on the question and return the best SQL + result."""
     pipeline: MercerPipeline = request.app.state.pipeline
 
     try:
@@ -175,6 +176,7 @@ async def post_query(body: QueryRequest, request: Request) -> QueryResponse:
     summary="Return the annotated schema for the connected database",
 )
 async def get_schema(request: Request) -> SchemaResponse:
+    """Return the annotated schema (tables, columns, glossary) for the connected database."""
     pipeline: MercerPipeline = request.app.state.pipeline
 
     # _load_schema is idempotent and cache-first
@@ -196,6 +198,7 @@ async def get_audit(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ) -> AuditListResponse:
+    """Return a paginated audit log of all pipeline runs, newest first."""
     store = AuditStore(settings.audit_path)
     entries, total = await store.query(limit=limit, offset=offset)
     return AuditListResponse(entries=entries, total=total)
@@ -211,6 +214,7 @@ async def get_audit(
     summary="Liveness and dependency health check",
 )
 async def get_health(request: Request) -> HealthResponse:
+    """Return liveness status and dependency health (DB reachability, SGLang health)."""
     engine = getattr(request.app.state, "engine", None)
 
     db_connected = False

@@ -101,6 +101,7 @@ async def _run(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
+    """CLI entry-point: introspect a database and persist the annotated schema to Redis."""
     parser = argparse.ArgumentParser(
         description="Introspect a database schema and store it in the Redis cache.",
     )

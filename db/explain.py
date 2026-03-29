@@ -29,6 +29,7 @@ class ExplainRunner:
         engine: AsyncEngine | Engine,
         dialect: str,
     ) -> ExplainResult:
+        """Run EXPLAIN on *sql* using the dialect-appropriate template."""
         template = _EXPLAIN_TEMPLATES.get(dialect.lower(), "EXPLAIN {sql}")
         explain_sql = template.format(sql=sql)
 

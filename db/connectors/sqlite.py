@@ -14,15 +14,18 @@ class SQLiteConnector:
         self._engine: AsyncEngine | None = None
 
     async def connect(self) -> None:
+        """Create the async SQLite engine (no pool — SQLite is single-file)."""
         self._engine = create_async_engine(self._url, echo=False)
 
     async def test_connection(self) -> bool:
+        """Verify the SQLite file is readable with a trivial query."""
         engine = self.get_engine()
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
         return True
 
     def get_engine(self) -> AsyncEngine:
+        """Return the async engine, creating it lazily if necessary."""
         if self._engine is None:
             self._engine = create_async_engine(self._url, echo=False)
         return self._engine

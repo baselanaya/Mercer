@@ -331,6 +331,7 @@ async def _main(args: argparse.Namespace) -> int:
 
 
 def main() -> None:
+    """CLI entry-point: run a benchmark suite or print an aggregate report from the audit log."""
     parser = argparse.ArgumentParser(description="Mercer benchmark runner")
     parser.add_argument(
         "--suite",

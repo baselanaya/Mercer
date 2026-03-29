@@ -43,6 +43,7 @@ _STAGE_ORDER = [
 
 @router.websocket("/ws/query")
 async def ws_query(websocket: WebSocket) -> None:
+    """Handle a single WebSocket session: receive question, stream stage events, send result."""
     await websocket.accept()
     try:
         data: dict[str, Any] = await websocket.receive_json()

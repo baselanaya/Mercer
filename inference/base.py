@@ -20,7 +20,9 @@ class LLMBackend(Protocol):
         system: str,
         temperature: float = 0.0,
         max_tokens: int = 2048,
-    ) -> str: ...
+    ) -> str:
+        """Send a single prompt to the LLM and return the generated text."""
+        ...
 
     async def generate_batch(
         self,

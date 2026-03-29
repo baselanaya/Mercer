@@ -28,12 +28,14 @@ class DuckDBConnector:
         self._engine: Engine | None = None
 
     async def connect(self) -> None:
+        """Create the DuckDB engine in a thread to avoid blocking the event loop."""
         await asyncio.to_thread(self._create_engine)
 
     def _create_engine(self) -> None:
         self._engine = create_engine(self._url, **self._kwargs)
 
     async def test_connection(self) -> bool:
+        """Run a trivial SELECT to verify the DuckDB file is accessible."""
         engine = self.get_engine()
         def _test() -> bool:
             with engine.connect() as conn:
@@ -42,6 +44,7 @@ class DuckDBConnector:
         return await asyncio.to_thread(_test)
 
     def get_engine(self) -> Engine:
+        """Return the sync SQLAlchemy engine, creating it lazily if necessary."""
         if self._engine is None:
             self._engine = create_engine(self._url, **self._kwargs)
         return self._engine

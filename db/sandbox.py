@@ -61,6 +61,7 @@ class ReadOnlySandbox:
         sql: str,
         engine: AsyncEngine | Engine,
     ) -> ExecutionResult:
+        """Execute *sql* in the sandbox and return an ExecutionResult (never raises on SQL errors)."""
         self._check_blocked(sql)
 
         if isinstance(engine, AsyncEngine):

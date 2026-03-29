@@ -15,6 +15,7 @@ class PostgresConnector:
         self._engine: AsyncEngine | None = None
 
     async def connect(self) -> None:
+        """Initialise the async PostgreSQL connection pool."""
         self._engine = create_async_engine(
             self._url,
             pool_size=self._pool_size,
@@ -23,12 +24,14 @@ class PostgresConnector:
         )
 
     async def test_connection(self) -> bool:
+        """Verify the PostgreSQL server is reachable with a trivial query."""
         engine = self.get_engine()
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
         return True
 
     def get_engine(self) -> AsyncEngine:
+        """Return the async engine, creating it lazily if necessary."""
         if self._engine is None:
             self._engine = create_async_engine(
                 self._url,

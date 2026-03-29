@@ -52,5 +52,6 @@ def configure_logging() -> None:
 
 
 def get_logger(name: str) -> structlog.types.FilteringBoundLogger:
+    """Return a configured structlog logger for the given module name."""
     configure_logging()
     return structlog.get_logger(name)  # type: ignore[no-any-return]

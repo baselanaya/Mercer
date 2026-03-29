@@ -22,6 +22,7 @@ _tokenizer = get_tokenizer()
 
 class SchemaIntrospector:
     async def introspect(self, engine: AsyncEngine) -> RawSchema:
+        """Inspect all tables and columns in the database and return a RawSchema."""
         db_url_hash = _hash_url(engine)
 
         async with engine.connect() as conn:

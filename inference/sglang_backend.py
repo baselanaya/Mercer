@@ -42,6 +42,7 @@ class SGLangBackend(LLMBackend):
         temperature: float = 0.0,
         max_tokens: int = 1024,
     ) -> str:
+        """Generate a completion via the SGLang OpenAI-compatible endpoint."""
         return await self._call(prompt, system, temperature, max_tokens)
 
     async def generate_batch(

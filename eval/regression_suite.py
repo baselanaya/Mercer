@@ -295,6 +295,7 @@ async def _run_suite(db_url: str, redis_url: str) -> int:
 
 
 def main() -> None:
+    """CLI entry-point: parse args and run the regression suite against a live database."""
     parser = argparse.ArgumentParser(description="Run Mercer regression suite")
     parser.add_argument("--db-url", required=True, help="SQLAlchemy async DB URL")
     parser.add_argument(

@@ -58,6 +58,7 @@ class AnthropicBackend(LLMBackend):
         temperature: float = 0.0,
         max_tokens: int = 2048,
     ) -> str:
+        """Generate a completion using the Anthropic Messages API."""
         return await self._call(prompt, system, temperature, max_tokens)
 
     @retry(
@@ -109,6 +110,7 @@ class OpenAIBackend(LLMBackend):
         temperature: float = 0.0,
         max_tokens: int = 2048,
     ) -> str:
+        """Generate a completion using the OpenAI Chat Completions API."""
         return await self._call(prompt, system, temperature, max_tokens)
 
     @retry(
