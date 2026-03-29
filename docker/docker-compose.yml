@@ -1,0 +1,103 @@
+# ---------------------------------------------------------------------------
+# Production stack
+#   docker compose -f docker/docker-compose.yml up -d
+# ---------------------------------------------------------------------------
+
+services:
+
+  # ── Postgres ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mercer
+      POSTGRES_PASSWORD: mercer
+      POSTGRES_DB: mercer_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mercer -d mercer_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ── Redis ─────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  # ── SGLang (Qwen2.5-Coder-7B, requires NVIDIA GPU) ───────────────────────
+  sglang:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.sglang
+    restart: unless-stopped
+    runtime: nvidia
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      HF_HOME: /hf_cache
+    ports:
+      - "30000:30000"
+    volumes:
+      - hf_cache:/hf_cache
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:30000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
+
+  # ── Mercer App ────────────────────────────────────────────────────────────
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://mercer:mercer@postgres:5432/mercer_dev
+      REDIS_URL: redis://redis:6379/0
+      SGLANG_URL: http://sglang:30000
+      AUDIT_PATH: /app/logs/audit.duckdb
+      LOG_LEVEL: INFO
+      # Set at deploy time via .env (not committed):
+      #   ANTHROPIC_API_KEY, OPENAI_API_KEY, MERCER_API_KEY, INFERENCE_BACKEND
+    env_file:
+      - path: ../.env
+        required: false
+    volumes:
+      - audit_data:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      sglang:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+volumes:
+  postgres_data:
+  redis_data:
+  hf_cache:
+  audit_data:

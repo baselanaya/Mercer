@@ -1,0 +1,13 @@
+# config/inference.yaml
+# SGLang server settings, model paths, and complexity routing thresholds.
+
+sglang:
+  url: "http://localhost:30000"
+  model: "Qwen/Qwen2.5-Coder-7B-Instruct"
+  quantization: "fp8"
+  max_tokens: 1024
+
+routing:
+  thresholds:
+    local: 0.3
+    mid: 0.7

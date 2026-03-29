@@ -1,0 +1,175 @@
+# config/mappings.yaml
+# Per-database semantic mappings for DVDRental.
+# Loaded at schema ingestion time and merged into AnnotatedSchema.
+#
+# Structure:
+#   tables:
+#     <table_name>:
+#       description: <human-readable table description>
+#       columns:
+#         <column_name>: <human-readable column description>
+#   glossary:
+#     <business_term>: <SQL expression or plain-English expansion>
+
+tables:
+  film:
+    description: "Film catalog — one row per title available for rental"
+    columns:
+      film_id: "Primary key"
+      title: "Film title"
+      description: "Short plot synopsis"
+      release_year: "Year the film was released"
+      language_id: "FK to language — original language of the film"
+      original_language_id: "FK to language — original language before dubbing (nullable)"
+      rental_duration: "Number of days a customer may keep the disc"
+      rental_rate: "Rental price per rental period in USD"
+      length: "Runtime in minutes"
+      replacement_cost: "Replacement cost if disc is lost or damaged, in USD"
+      rating: "MPAA rating: G, PG, PG-13, R, or NC-17"
+      special_features: "Array of special features (Trailers, Commentaries, etc.)"
+      fulltext: "tsvector full-text search index (auto-generated)"
+
+  actor:
+    description: "Actor master — one row per actor"
+    columns:
+      actor_id: "Primary key"
+      first_name: "Actor first name"
+      last_name: "Actor last name"
+      last_update: "Timestamp of last record modification"
+
+  customer:
+    description: "Customer master — one row per registered customer"
+    columns:
+      customer_id: "Primary key"
+      store_id: "FK to store — which store the customer registered at"
+      first_name: "Customer first name"
+      last_name: "Customer last name"
+      email: "Customer email address"
+      address_id: "FK to address — customer mailing address"
+      activebool: "Whether the customer account is currently active (boolean)"
+      create_date: "Date the customer account was created"
+      last_update: "Timestamp of last record modification"
+      active: "Legacy integer active flag — 1=active, 0=inactive. Use activebool instead."
+
+  rental:
+    description: "Rental transactions — one row per disc rental event"
+    columns:
+      rental_id: "Primary key"
+      rental_date: "Timestamp when the customer rented the disc"
+      inventory_id: "FK to inventory — which physical disc copy was rented"
+      customer_id: "FK to customer"
+      return_date: "Timestamp when disc was returned (NULL = still out on rental)"
+      staff_id: "FK to staff — employee who processed the rental"
+      last_update: "Timestamp of last record modification"
+
+  payment:
+    description: "Payments made by customers for rentals"
+    columns:
+      payment_id: "Primary key"
+      customer_id: "FK to customer"
+      staff_id: "FK to staff — employee who received the payment"
+      rental_id: "FK to rental — the rental this payment covers"
+      amount: "Payment amount in USD"
+      payment_date: "Timestamp of payment"
+
+  store:
+    description: "Physical store locations"
+    columns:
+      store_id: "Primary key"
+      manager_staff_id: "FK to staff — the store manager"
+      address_id: "FK to address — store street address"
+      last_update: "Timestamp of last record modification"
+
+  staff:
+    description: "Staff (employees) — one row per employee"
+    columns:
+      staff_id: "Primary key"
+      first_name: "Employee first name"
+      last_name: "Employee last name"
+      address_id: "FK to address — employee address"
+      email: "Employee email address"
+      store_id: "FK to store — primary store this employee works at"
+      active: "Whether the employee is currently active"
+      username: "Login username for the POS system"
+      password: "Hashed login password (do not expose)"
+      last_update: "Timestamp of last record modification"
+      picture: "Employee photo (bytea)"
+
+  inventory:
+    description: "Physical disc inventory — one row per disc copy"
+    columns:
+      inventory_id: "Primary key"
+      film_id: "FK to film — which title this disc copy is"
+      store_id: "FK to store — which store holds this disc"
+      last_update: "Timestamp of last record modification"
+
+  category:
+    description: "Film genre categories (Action, Comedy, Drama, etc.)"
+    columns:
+      category_id: "Primary key"
+      name: "Genre name"
+      last_update: "Timestamp of last record modification"
+
+  address:
+    description: "Address master — used by customer, staff, and store tables"
+    columns:
+      address_id: "Primary key"
+      address: "Street address line 1"
+      address2: "Street address line 2 (nullable)"
+      district: "District or state"
+      city_id: "FK to city"
+      postal_code: "Postal / ZIP code"
+      phone: "Contact phone number"
+      last_update: "Timestamp of last record modification"
+
+  city:
+    description: "City lookup table"
+    columns:
+      city_id: "Primary key"
+      city: "City name"
+      country_id: "FK to country"
+      last_update: "Timestamp of last record modification"
+
+  country:
+    description: "Country lookup table"
+    columns:
+      country_id: "Primary key"
+      country: "Country name"
+      last_update: "Timestamp of last record modification"
+
+  language:
+    description: "Language lookup — used by film.language_id"
+    columns:
+      language_id: "Primary key"
+      name: "Language name (e.g. English, French)"
+      last_update: "Timestamp of last record modification"
+
+  film_actor:
+    description: "Many-to-many join table between film and actor"
+    columns:
+      actor_id: "FK to actor (part of composite PK)"
+      film_id: "FK to film (part of composite PK)"
+      last_update: "Timestamp of last record modification"
+
+  film_category:
+    description: "Many-to-many join table between film and category"
+    columns:
+      film_id: "FK to film (part of composite PK)"
+      category_id: "FK to category (part of composite PK)"
+      last_update: "Timestamp of last record modification"
+
+glossary:
+  revenue: "SUM of payment.amount"
+  total revenue: "SUM of payment.amount"
+  total sales: "SUM of payment.amount"
+  total spend: "SUM(payment.amount) per customer"
+  customer: "customer table — columns: first_name, last_name, email, activebool"
+  active customers: "customers WHERE activebool = true"
+  inactive customers: "customers WHERE activebool = false OR active = 0"
+  overdue rentals: "rentals WHERE return_date IS NULL AND rental_date + rental_duration days < NOW()"
+  top customers: "customers ordered by SUM(payment.amount) DESC"
+  top films: "films ordered by COUNT(rental.rental_id) DESC"
+  popular films: "films ordered by COUNT(rental.rental_id) DESC"
+  average rental rate: "AVG(film.rental_rate)"
+  rental duration: "film.rental_duration — number of days allowed per rental"
+  replacement cost: "film.replacement_cost — cost to replace a lost disc in USD"

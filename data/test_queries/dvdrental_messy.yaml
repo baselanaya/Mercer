@@ -1,0 +1,164 @@
+# data/test_queries/dvdrental_messy.yaml
+#
+# Hand-written validation queries for the DVDRental "messy" schema
+# (data/messy_variants/dvdrental_messy.sql).
+#
+# All expected_sql entries use SQLite-compatible syntax so the benchmark
+# runner can evaluate them against an in-memory SQLite seed database.
+# Postgres-specific functions (EXTRACT, TEXT[]) are not used here.
+#
+# Schema chaos tested:
+#   - Abbreviated column names  (f_nm, l_nm, e_addr, rnt_dur, AMT, PMT_DT …)
+#   - Renamed tables            (cust_mstr, f_catalog, cat, film_cat, inv …)
+#   - Mixed naming conventions  (snake_case, camelCase, ALL_CAPS, abbreviated)
+#   - Quoted mixed-case names   ("RentalTxn", "PAYMENT_LEDGER")
+#   - No declared FK constraints (join paths must be inferred semantically)
+#
+# Each entry:
+#   id           - unique identifier
+#   question     - the natural language input
+#   expected_sql - SQLite-compatible correct SQL
+#   notes        - what schema chaos this exercises
+#   difficulty   - easy | medium | hard
+
+queries:
+
+  - id: messy_01
+    question: "How many customers are in the system?"
+    difficulty: easy
+    notes: >
+      Basic COUNT on the renamed customer table.
+      Tests that the model maps "customers" → cust_mstr.
+    expected_sql: |
+      SELECT COUNT(*) AS customer_count
+      FROM cust_mstr;
+
+  - id: messy_02
+    question: "List every customer's first name, last name, and email address"
+    difficulty: easy
+    notes: >
+      Column abbreviation mapping: first_name → f_nm, last_name → l_nm,
+      email → e_addr. Tests that the model discovers abbreviated column names.
+    expected_sql: |
+      SELECT f_nm, l_nm, e_addr
+      FROM cust_mstr
+      ORDER BY l_nm, f_nm;
+
+  - id: messy_03
+    question: "What is the total revenue collected across all payments?"
+    difficulty: easy
+    notes: >
+      ALL_CAPS table name "PAYMENT_LEDGER" with abbreviated amount column AMT.
+      Tests that the model navigates the finance-system naming style.
+    expected_sql: |
+      SELECT SUM(AMT) AS total_revenue
+      FROM "PAYMENT_LEDGER";
+
+  - id: messy_04
+    question: "Show all rental transactions that occurred in 2005"
+    difficulty: easy
+    notes: >
+      camelCase table "RentalTxn" with abbreviated date column rnt_dt.
+      SQLite date extraction with STRFTIME instead of EXTRACT.
+    expected_sql: |
+      SELECT rentalId, rnt_dt, invId, custId
+      FROM "RentalTxn"
+      WHERE STRFTIME('%Y', rnt_dt) = '2005'
+      ORDER BY rnt_dt;
+
+  - id: messy_05
+    question: "List all films with a rental rate above 3.00"
+    difficulty: easy
+    notes: >
+      Abbreviated film table (f_catalog) with rnt_rt (was rental_rate) and
+      ttl (was title). Tests column abbreviation mapping.
+    expected_sql: |
+      SELECT ttl AS title, rnt_rt AS rental_rate
+      FROM f_catalog
+      WHERE rnt_rt > 3.00
+      ORDER BY rnt_rt DESC;
+
+  - id: messy_06
+    question: "Which actors have appeared in more than 2 films?"
+    difficulty: medium
+    notes: >
+      actor table kept original naming; film_actor uses f_id (was film_id).
+      No FK declared — join path must be inferred from value semantics.
+    expected_sql: |
+      SELECT
+          a.actor_id,
+          a.first_name,
+          a.last_name,
+          COUNT(fa.f_id) AS film_count
+      FROM actor a
+      JOIN film_actor fa ON a.actor_id = fa.actor_id
+      GROUP BY a.actor_id, a.first_name, a.last_name
+      HAVING COUNT(fa.f_id) > 2
+      ORDER BY film_count DESC;
+
+  - id: messy_07
+    question: "What is the average rental duration per film category?"
+    difficulty: hard
+    notes: >
+      3-table join with all-abbreviated names: cat (cat_id, cat_nm),
+      film_cat (f_id, cat_id), f_catalog (f_id, rnt_dur).
+      No FK constraints. Tests multi-hop join path inference.
+    expected_sql: |
+      SELECT
+          c.cat_nm AS category,
+          ROUND(AVG(f.rnt_dur), 2) AS avg_rental_duration
+      FROM cat c
+      JOIN film_cat fc ON c.cat_id = fc.cat_id
+      JOIN f_catalog f ON fc.f_id = f.f_id
+      GROUP BY c.cat_id, c.cat_nm
+      ORDER BY avg_rental_duration DESC;
+
+  - id: messy_08
+    question: "Find customers who have never made a payment"
+    difficulty: medium
+    notes: >
+      Anti-join between cust_mstr (cust_id) and "PAYMENT_LEDGER" (CUST_ID).
+      Mixed case column names across two naming conventions.
+      No FK declared.
+    expected_sql: |
+      SELECT cm.cust_id, cm.f_nm, cm.l_nm, cm.e_addr
+      FROM cust_mstr cm
+      LEFT JOIN "PAYMENT_LEDGER" pl ON cm.cust_id = pl.CUST_ID
+      WHERE pl.PMT_ID IS NULL
+      ORDER BY cm.cust_id;
+
+  - id: messy_09
+    question: "List the top 3 films by number of inventory copies"
+    difficulty: medium
+    notes: >
+      Join between f_catalog (f_id, ttl) and inv (f_id, inv_id).
+      Both use f_id but tables have completely different styles.
+      No FK declared.
+    expected_sql: |
+      SELECT
+          f.ttl AS title,
+          COUNT(i.inv_id) AS copy_count
+      FROM f_catalog f
+      JOIN inv i ON f.f_id = i.f_id
+      GROUP BY f.f_id, f.ttl
+      ORDER BY copy_count DESC
+      LIMIT 3;
+
+  - id: messy_10
+    question: "Show total payment amount per customer for transactions in 2005"
+    difficulty: hard
+    notes: >
+      Join between cust_mstr (cust_id → f_nm/l_nm) and "PAYMENT_LEDGER"
+      (CUST_ID → AMT, PMT_DT). Mixed naming: snake_case vs ALL_CAPS.
+      SQLite date filter with STRFTIME. No FK declared.
+    expected_sql: |
+      SELECT
+          cm.cust_id,
+          cm.f_nm,
+          cm.l_nm,
+          SUM(pl.AMT) AS total_paid
+      FROM cust_mstr cm
+      JOIN "PAYMENT_LEDGER" pl ON cm.cust_id = pl.CUST_ID
+      WHERE STRFTIME('%Y', pl.PMT_DT) = '2005'
+      GROUP BY cm.cust_id, cm.f_nm, cm.l_nm
+      ORDER BY total_paid DESC;

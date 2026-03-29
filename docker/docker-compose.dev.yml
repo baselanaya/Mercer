@@ -1,0 +1,65 @@
+# ---------------------------------------------------------------------------
+# Development overrides — merge on top of docker-compose.yml
+#
+#   docker compose \
+#     -f docker/docker-compose.yml \
+#     -f docker/docker-compose.dev.yml \
+#     up
+#
+# Changes vs production:
+#   • app: uvicorn --reload, source tree mounted, no pre-built UI required
+#   • sglang: disabled (use INFERENCE_BACKEND=anthropic or openai in .env)
+# ---------------------------------------------------------------------------
+
+services:
+
+  # Disable SGLang in dev — use cloud API backend instead
+  sglang:
+    profiles:
+      - gpu   # only starts when: docker compose --profile gpu up
+
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.app
+      target: py-builder   # stop after Python deps, skip UI build
+    command:
+      - uvicorn
+      - app.api.main:app
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8000"
+      - --reload
+      - --reload-dir
+      - /app
+    environment:
+      DATABASE_URL: postgresql+asyncpg://mercer:mercer@postgres:5432/mercer_dev
+      REDIS_URL: redis://redis:6379/0
+      SGLANG_URL: http://localhost:30000   # not used unless profile=gpu
+      AUDIT_PATH: /app/logs/audit.duckdb
+      LOG_LEVEL: DEBUG
+      INFERENCE_BACKEND: anthropic        # override in .env to switch
+    volumes:
+      # Mount source for hot-reload
+      - ..:/app
+      # Keep audit DB outside the source tree mount
+      - audit_data:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      # Merge override: mark sglang optional so app starts without GPU
+      sglang:
+        condition: service_healthy
+        required: false
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+volumes:
+  audit_data:

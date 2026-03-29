@@ -1,0 +1,22 @@
+FROM lmsysorg/sglang:latest
+
+# NVIDIA runtime compatibility — ensure CUDA libs are visible
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+# HuggingFace cache volume mount point
+ENV HF_HOME=/hf_cache
+
+# Copy entrypoint helper (optional: lets docker-compose override model-path)
+WORKDIR /app
+
+CMD ["python", "-m", "sglang.launch_server", \
+     "--model-path", "Qwen/Qwen2.5-Coder-7B-Instruct", \
+     "--dtype", "bfloat16", \
+     "--quantization", "fp8", \
+     "--enable-cuda-graph", \
+     "--enable-flashinfer", \
+     "--mem-fraction-static", "0.88", \
+     "--context-length", "16384", \
+     "--port", "30000", \
+     "--host", "0.0.0.0"]
