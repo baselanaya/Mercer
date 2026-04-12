@@ -1,0 +1,79 @@
+# Environment
+.env
+.env.local
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+pip-wheel-metadata/
+
+# Testing & coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Data & models (large files)
+data/dvdrental/*.sql
+data/northwind/*.sql
+*.db
+*.sqlite3
+*.bin
+*.safetensors
+*.gguf
+*.pt
+*.pth
+
+# Claude Code settings (user-specific; hooks reference local .wolf dir)
+.claude/
+
+# HuggingFace model cache
+.cache/
+models/
+
+# Logs & audit (keep directory, ignore content)
+logs/*.jsonl
+logs/*.duckdb
+*.log
+audit/
+
+# Node / UI
+app/ui/node_modules/
+app/ui/dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Docker
+docker/volumes/
+
+# Screenshots / debug artifacts
+*.png
+*.jpg
+*.jpeg
+
+# Playwright MCP captures
+.playwright-mcp/
+
+# OpenWolf agent memory (local session state)
+.wolf/
+
+# Test / debug artifacts
+test.json
+bird_chinook_proxy.json

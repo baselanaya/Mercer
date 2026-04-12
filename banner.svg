@@ -1,0 +1,150 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 240" width="920" height="240">
+  <defs>
+
+    <!-- Dot grid texture -->
+    <pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="1" fill="#1C1C20"/>
+    </pattern>
+
+    <!-- Ambient glow — left (behind text) -->
+    <radialGradient id="glowLeft" cx="184" cy="120" r="300" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#D97757" stop-opacity="0.09"/>
+      <stop offset="100%" stop-color="#D97757" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Ambient glow — right (behind pipeline) -->
+    <radialGradient id="glowRight" cx="645" cy="120" r="260" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#D97757" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#D97757" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Line gradient: fades from dim → bright left-to-right across the pipeline -->
+    <linearGradient id="lineGrad" x1="429" y1="0" x2="875" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#D97757" stop-opacity="0.20"/>
+      <stop offset="100%" stop-color="#D97757" stop-opacity="0.65"/>
+    </linearGradient>
+
+    <!-- Coral glow filter for nodes -->
+    <filter id="nodeGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+  </defs>
+
+  <!-- ── Base background ─────────────────────────────────────────── -->
+  <rect width="920" height="240" fill="#0B0B0D"/>
+  <rect width="920" height="240" fill="url(#dots)"/>
+
+  <!-- Ambient glows -->
+  <rect width="920" height="240" fill="url(#glowLeft)"/>
+  <rect width="920" height="240" fill="url(#glowRight)"/>
+
+  <!-- Top + bottom coral accent lines -->
+  <rect x="0" y="0"   width="920" height="2" fill="#D97757" opacity="0.55"/>
+  <rect x="0" y="238" width="920" height="2" fill="#D97757" opacity="0.55"/>
+
+  <!-- Vertical divider (dashed) -->
+  <line x1="372" y1="28" x2="372" y2="212"
+        stroke="#2A2A2E" stroke-width="1" stroke-dasharray="5 5"/>
+
+
+  <!-- ── LEFT — Project identity ─────────────────────────────────── -->
+
+  <!-- Coral left accent bar -->
+  <rect x="50" y="70" width="3" height="78" rx="1.5" fill="#D97757" opacity="0.85"/>
+
+  <!-- MERCER wordmark -->
+  <text x="66" y="124"
+        font-family="ui-monospace,'SF Mono','Fira Code','Cascadia Code',monospace"
+        font-size="60" font-weight="800" fill="#F4F4F5" letter-spacing="-1.5">MERCER</text>
+
+  <!-- Tagline in coral -->
+  <text x="68" y="148"
+        font-family="ui-monospace,'SF Mono',monospace"
+        font-size="11" font-weight="600" fill="#D97757" letter-spacing="3.5">NL  →  SQL</text>
+
+  <!-- Sub-description -->
+  <text x="68" y="168"
+        font-family="ui-monospace,monospace"
+        font-size="9.5" fill="#52525B" letter-spacing="0.4">6-stage pipeline · GPU-accelerated · no vector DB required</text>
+
+
+  <!-- ── RIGHT — Agentic pipeline visualization ──────────────────── -->
+
+  <!-- Section label -->
+  <text x="645" y="74"
+        text-anchor="middle"
+        font-family="ui-monospace,monospace"
+        font-size="7.5" fill="#3F3F46" letter-spacing="4">AGENTIC PIPELINE</text>
+
+  <!-- Stage X positions (6 nodes, 92px apart): 415 507 599 691 783 875 -->
+  <!-- All at y=116 -->
+
+  <!-- Spine (very faint backbone line) -->
+  <line x1="415" y1="116" x2="875" y2="116" stroke="#222226" stroke-width="1.5"/>
+
+  <!-- Connector lines with left-to-right opacity gradient -->
+  <line x1="429" y1="116" x2="493" y2="116" stroke="url(#lineGrad)" stroke-width="1.5"/>
+  <line x1="521" y1="116" x2="585" y2="116" stroke="url(#lineGrad)" stroke-width="1.5"/>
+  <line x1="613" y1="116" x2="677" y2="116" stroke="url(#lineGrad)" stroke-width="1.5"/>
+  <line x1="705" y1="116" x2="769" y2="116" stroke="url(#lineGrad)" stroke-width="1.5"/>
+  <line x1="797" y1="116" x2="861" y2="116" stroke="url(#lineGrad)" stroke-width="1.5"/>
+
+  <!-- STAGE 01 — Entity Retrieval (x=415) -->
+  <circle cx="415" cy="116" r="22" fill="#D97757" fill-opacity="0.10"/>
+  <circle cx="415" cy="116" r="14" fill="#D97757" filter="url(#nodeGlow)"/>
+  <text x="415" y="120" text-anchor="middle"
+        font-family="ui-monospace,monospace" font-size="9" font-weight="700" fill="#0B0B0D">01</text>
+  <text x="415" y="144" text-anchor="middle"
+        font-family="ui-monospace,monospace" font-size="7.5" fill="#A1A1AA" letter-spacing="1">ENTITY</text>
+
+  <!-- STAGE 02 — Schema Linking (x=507) -->
+  <circle cx="507" cy="116" r="22" fill="#D97757" fill-opacity="0.10"/>
+  <circle cx="507" cy="116" r="14" fill="#D97757" filter="url(#nodeGlow)"/>
+  <text x="507" y="120" text-anchor="middle"
+        font-family="ui-monospace,monospace" font-size="9" font-weight="700" fill="#0B0B0D">02</text>
+  <text x="507" y="144" text-anchor="middle"
+        font-family="ui-monospace,monospace" font-size="7.5" fill="#A1A1AA" letter-spacing="1">SCHEMA</text>
+
+  <!-- STAGE 03 — Query Decomposition (x=599) -->
+  <circle cx="599" cy="116" r="22" fill="#D97757" fill-opacity="0.10"/>
+  <circle cx="599" cy="116" r="14" fill="#D97757" filter="url(#nodeGlow)"/>
+  <text x="599" y="120" text-anchor="middle"
+        font-family="ui-monospace,monospace" font-size="9" font-weight="700" fill="#0B0B0D">03</text>
+  <text x="599" y="144" text-anchor="middle"
+        font-family="ui-monospace,monospace" font-size="7.5" fill="#A1A1AA" letter-spacing="1">PLAN</text>
+
+  <!-- STAGE 04 — Candidate Generation (x=691) -->
+  <circle cx="691" cy="116" r="22" fill="#D97757" fill-opacity="0.10"/>
+  <circle cx="691" cy="116" r="14" fill="#D97757" filter="url(#nodeGlow)"/>
+  <text x="691" y="120" text-anchor="middle"
+        font-family="ui-monospace,monospace" font-size="9" font-weight="700" fill="#0B0B0D">04</text>
+  <text x="691" y="144" text-anchor="middle"
+        font-family="ui-monospace,monospace" font-size="7.5" fill="#A1A1AA" letter-spacing="1">SQL&#xD7;3</text>
+
+  <!-- STAGE 05 — Execution + Scoring (x=783) -->
+  <circle cx="783" cy="116" r="22" fill="#D97757" fill-opacity="0.10"/>
+  <circle cx="783" cy="116" r="14" fill="#D97757" filter="url(#nodeGlow)"/>
+  <text x="783" y="120" text-anchor="middle"
+        font-family="ui-monospace,monospace" font-size="9" font-weight="700" fill="#0B0B0D">05</text>
+  <text x="783" y="144" text-anchor="middle"
+        font-family="ui-monospace,monospace" font-size="7.5" fill="#A1A1AA" letter-spacing="1">EXECUTE</text>
+
+  <!-- STAGE 06 — Taxonomy Correction (x=875) -->
+  <circle cx="875" cy="116" r="22" fill="#D97757" fill-opacity="0.10"/>
+  <circle cx="875" cy="116" r="14" fill="#D97757" filter="url(#nodeGlow)"/>
+  <text x="875" y="120" text-anchor="middle"
+        font-family="ui-monospace,monospace" font-size="9" font-weight="700" fill="#0B0B0D">06</text>
+  <text x="875" y="144" text-anchor="middle"
+        font-family="ui-monospace,monospace" font-size="7.5" fill="#A1A1AA" letter-spacing="1">CORRECT</text>
+
+  <!-- Corner year mark -->
+  <text x="908" y="18" text-anchor="end"
+        font-family="ui-monospace,monospace"
+        font-size="8" fill="#27272A">2025</text>
+
+</svg>

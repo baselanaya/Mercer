@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+/* ─── Warm Obsidian Palette — override zinc to have warm earth undertones ─── */
+@theme {
+  --font-ui: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "Fira Code", monospace;
+
+  /* Zinc — warmed from cold blue-black to rich earth tones */
+  --color-zinc-950: #0E0C0A;
+  --color-zinc-900: #161210;
+  --color-zinc-800: #231F18;
+  --color-zinc-700: #352D24;
+  --color-zinc-600: #5C5048;
+  --color-zinc-500: #8C7E74;
+  --color-zinc-400: #B0A49C;
+  --color-zinc-300: #D4CBC4;
+  --color-zinc-200: #E8E0D8;
+  --color-zinc-100: #F2EDE8;
+  --color-zinc-50: #F8F4F0;
+
+  /* Coral — Anthropic's signature accent */
+  --color-coral-950: #1F0D07;
+  --color-coral-900: #3D1A10;
+  --color-coral-800: #5C2918;
+  --color-coral-600: #A84E32;
+  --color-coral-500: #D97757;
+  --color-coral-400: #E88B6A;
+  --color-coral-300: #F2A98B;
+  --color-coral-200: #F7CDB8;
+  --color-coral-100: #FBE8DC;
+
+  /* Semantic tokens */
+  --color-pk: #C4934A;   /* primary key — warm amber */
+  --color-fk: #7C8FBF;   /* foreign key — muted indigo */
+}
+
+/* ─── Base ─── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: #0E0C0A;
+  color: #E8E0D8;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #161210;
+}
+::-webkit-scrollbar-thumb {
+  background: #352D24;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #5C5048;
+}
+
+/* ─── CodeMirror ─── */
+.cm-editor {
+  height: 100%;
+  font-family: var(--font-mono) !important;
+  font-size: 12.5px;
+}
+.cm-editor.cm-focused {
+  outline: none !important;
+}
+.cm-scroller {
+  overflow: auto;
+}
+
+/* ─── Coral glow animation ─── */
+@keyframes coral-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 87, 0.4); }
+  50%       { box-shadow: 0 0 0 4px rgba(217, 119, 87, 0); }
+}
+
+.coral-pulse {
+  animation: coral-pulse 1.6s ease-in-out infinite;
+}
+
+/* ─── Pipeline stage connecting line animation ─── */
+@keyframes line-fill {
+  from { stroke-dashoffset: 100; }
+  to   { stroke-dashoffset: 0; }
+}
+
+/* ─── Schema card glow ─── */
+@keyframes card-glow {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(217, 119, 87, 0.4), 0 0 12px rgba(217, 119, 87, 0.08); }
+  50%       { box-shadow: 0 0 0 1px rgba(217, 119, 87, 0.7), 0 0 20px rgba(217, 119, 87, 0.15); }
+}
+
+.schema-card-active {
+  animation: card-glow 2s ease-in-out infinite;
+}

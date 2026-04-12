@@ -1,0 +1,107 @@
+# data/test_queries/dvdrental_baseline.yaml
+#
+# Phase 0 validation queries for the DVDRental clean schema.
+# Used by eval/regression_suite.py and scripts/benchmark.py.
+#
+# Each entry:
+#   id          - unique identifier
+#   question    - the natural language input
+#   expected_sql- canonical correct SQL (execution accuracy target)
+#   notes       - what makes this query interesting / what it tests
+#   difficulty  - easy | medium | hard
+
+queries:
+
+  - id: dvd_01
+    question: "List the top 5 films by rental count"
+    difficulty: medium
+    notes: >
+      Requires joining film → inventory → rental (2 hops).
+      Tests FK path discovery through the inventory bridge table.
+      Many wrong answers join film directly to rental (no such FK).
+    expected_sql: |
+      SELECT
+          f.title,
+          COUNT(r.rental_id) AS rental_count
+      FROM film f
+      JOIN inventory i ON f.film_id = i.film_id
+      JOIN rental r    ON i.inventory_id = r.inventory_id
+      GROUP BY f.film_id, f.title
+      ORDER BY rental_count DESC
+      LIMIT 5;
+
+  - id: dvd_02
+    question: "Show total payment amount by customer for 2005"
+    difficulty: easy
+    notes: >
+      Simple aggregation + date filter. Tests year extraction from timestamp.
+      Expected to be easy — direct join, no bridge table.
+      Wrong answers often use payment_date::date BETWEEN ... instead of EXTRACT.
+    expected_sql: |
+      SELECT
+          c.customer_id,
+          c.first_name,
+          c.last_name,
+          SUM(p.amount) AS total_amount
+      FROM customer c
+      JOIN payment p ON c.customer_id = p.customer_id
+      WHERE EXTRACT(YEAR FROM p.payment_date) = 2005
+      GROUP BY c.customer_id, c.first_name, c.last_name
+      ORDER BY total_amount DESC;
+
+  - id: dvd_03
+    question: "Which actors appear in more than 30 films?"
+    difficulty: easy
+    notes: >
+      HAVING clause with COUNT on a join table.
+      Tests that the model uses film_actor as the bridge (not a direct film→actor FK).
+      A common error is forgetting film_actor and trying to join actor directly to film.
+    expected_sql: |
+      SELECT
+          a.actor_id,
+          a.first_name,
+          a.last_name,
+          COUNT(fa.film_id) AS film_count
+      FROM actor a
+      JOIN film_actor fa ON a.actor_id = fa.actor_id
+      GROUP BY a.actor_id, a.first_name, a.last_name
+      HAVING COUNT(fa.film_id) > 30
+      ORDER BY film_count DESC;
+
+  - id: dvd_04
+    question: "Find all customers who have never rented a film"
+    difficulty: medium
+    notes: >
+      Anti-join / NOT EXISTS / LEFT JOIN ... WHERE NULL pattern.
+      Tests negation reasoning. All three SQL patterns (LEFT JOIN IS NULL,
+      NOT IN, NOT EXISTS) are considered correct.
+      Commonly fails when the model uses INNER JOIN and adds a filter that
+      makes no logical sense.
+    expected_sql: |
+      SELECT
+          c.customer_id,
+          c.first_name,
+          c.last_name,
+          c.email
+      FROM customer c
+      LEFT JOIN rental r ON c.customer_id = r.customer_id
+      WHERE r.rental_id IS NULL
+      ORDER BY c.customer_id;
+
+  - id: dvd_05
+    question: "What is the average rental duration per film category?"
+    difficulty: medium
+    notes: >
+      3-table join through two bridge tables: category → film_category → film.
+      Tests multi-hop join path. rental_duration is on the film table, not rental.
+      A common mistake is to use rental.rental_date / return_date instead of
+      film.rental_duration.
+    expected_sql: |
+      SELECT
+          cat.name                        AS category,
+          ROUND(AVG(f.rental_duration), 2) AS avg_rental_duration_days
+      FROM category cat
+      JOIN film_category fc ON cat.category_id = fc.category_id
+      JOIN film f           ON fc.film_id = f.film_id
+      GROUP BY cat.category_id, cat.name
+      ORDER BY avg_rental_duration_days DESC;

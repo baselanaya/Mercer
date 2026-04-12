@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=75.0", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "mercer"
+version = "0.1.0"
+description = "Natural Language to SQL for real-world databases"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/baselanaya/mercer"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+pythonpath = ["."]
+
+[tool.coverage.run]
+source = ["."]
+omit = [
+    "tests/*",
+    "eval/*",
+    "scripts/*",
+    "data/*",
+    "docker/*",
+    ".venv/*",
+]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["core", "inference", "schema", "db", "kernels", "prompts", "config", "app"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+exclude = ["data/", "docker/", "eval/", "scripts/"]
+
+[[tool.mypy.overrides]]
+module = ["tests.*", "tests"]
+disallow_untyped_defs = false
+disallow_untyped_decorators = false
+disable_error_code = ["method-assign", "arg-type", "misc", "call-arg", "no-untyped-def", "var-annotated"]
+
+[tool.setuptools.packages.find]
+exclude = ["tests*", "data*", "eval*", "docs*"]

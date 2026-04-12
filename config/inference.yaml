@@ -1,0 +1,12 @@
+# config/inference.yaml
+# llama.cpp server settings and complexity routing thresholds.
+
+llamacpp:
+  url: "http://localhost:8080"
+  model: "Qwen2.5-Coder-7B-Instruct-IQ4_XS.gguf"
+  max_tokens: 1024
+
+routing:
+  thresholds:
+    local: 0.3
+    mid: 0.7

@@ -1,0 +1,17 @@
+# GPU stack — requires CUDA 12.4+, install after requirements.txt
+# pip install -r requirements.txt -r requirements-gpu.txt
+
+# PyTorch (CUDA 12.4)
+torch>=2.5.0
+torchvision>=0.20.0
+
+# llama.cpp Python bindings (CUDA build)
+# Install via: pip install "llama-cpp-python[cuda]" \
+#   --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu121
+llama-cpp-python>=0.3.0
+
+# Triton — GPU kernels
+triton>=3.1.0
+
+# HuggingFace model download (huggingface-cli download)
+huggingface-hub>=0.27.0
