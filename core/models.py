@@ -15,6 +15,11 @@ class ColumnSchema(BaseModel):
     is_foreign_key: bool = False
     references_table: str | None = None   # populated by introspector for FK columns
     references_column: str | None = None  # populated by introspector for FK columns
+    # Up to N distinct values sampled from the column at introspection time.
+    # Used by Stage 1 (LSH/value matching) and Stage 2 (M-Schema prompts).
+    # None means sampling has not been attempted; an empty list means the
+    # column has no usable values (BLOB, very long text, or empty).
+    sample_values: list[str] | None = None
 
 
 class TableSchema(BaseModel):

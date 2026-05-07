@@ -368,3 +368,144 @@ def test_empty_mappings_file(tmp_path: Path) -> None:
     raw = RawSchema(db_url_hash="abc", tables=[])
     annotated = mapper.annotate(raw)
     assert annotated.glossary == {}
+
+
+# ---------------------------------------------------------------------------
+# sample_values behavior
+# ---------------------------------------------------------------------------
+
+class TestSampleValues:
+    """Introspector samples up to N distinct values per amenable column."""
+
+    @pytest.fixture
+    async def populated_engine(self) -> AsyncGenerator[AsyncEngine, None]:
+        eng = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
+        async with eng.begin() as conn:
+            await conn.execute(text("""
+                CREATE TABLE customer (
+                    cust_id     INTEGER PRIMARY KEY,
+                    cust_seg_cd TEXT,
+                    cust_name   TEXT
+                )
+            """))
+            await conn.execute(
+                text("INSERT INTO customer (cust_id, cust_seg_cd, cust_name) "
+                     "VALUES (:i, :s, :n)"),
+                [
+                    {"i": 1, "s": "RETAIL", "n": "Alice"},
+                    {"i": 2, "s": "RETAIL", "n": "Bob"},
+                    {"i": 3, "s": "CORP",   "n": "Carol"},
+                    {"i": 4, "s": "SMB",    "n": "Dan"},
+                    {"i": 5, "s": "CORP",   "n": "Eve"},
+                ],
+            )
+        yield eng
+        await eng.dispose()
+
+    async def test_sample_values_are_populated(
+        self, populated_engine: AsyncEngine, introspector: SchemaIntrospector
+    ) -> None:
+        schema = await introspector.introspect(populated_engine)
+        cust = next(t for t in schema.tables if t.name == "customer")
+        seg = next(c for c in cust.columns if c.name == "cust_seg_cd")
+        assert seg.sample_values is not None
+        assert set(seg.sample_values) == {"RETAIL", "CORP", "SMB"}
+
+    async def test_sample_values_distinct_only(
+        self, populated_engine: AsyncEngine, introspector: SchemaIntrospector
+    ) -> None:
+        schema = await introspector.introspect(populated_engine)
+        cust = next(t for t in schema.tables if t.name == "customer")
+        seg = next(c for c in cust.columns if c.name == "cust_seg_cd")
+        assert seg.sample_values is not None
+        assert len(seg.sample_values) == len(set(seg.sample_values))
+
+    async def test_sample_values_capped_per_column(
+        self, introspector: SchemaIntrospector
+    ) -> None:
+        """When the column has more than the cap, only the cap is stored."""
+        from schema.introspector import SAMPLE_VALUES_PER_COLUMN
+        eng = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
+        try:
+            async with eng.begin() as conn:
+                await conn.execute(text(
+                    "CREATE TABLE many_vals (id INTEGER PRIMARY KEY, label TEXT)"
+                ))
+                rows = [
+                    {"id": i, "label": f"label_{i}"}
+                    for i in range(SAMPLE_VALUES_PER_COLUMN * 2)
+                ]
+                await conn.execute(
+                    text("INSERT INTO many_vals (id, label) VALUES (:id, :label)"),
+                    rows,
+                )
+            schema = await introspector.introspect(eng)
+            tbl = next(t for t in schema.tables if t.name == "many_vals")
+            label = next(c for c in tbl.columns if c.name == "label")
+            assert label.sample_values is not None
+            assert len(label.sample_values) == SAMPLE_VALUES_PER_COLUMN
+        finally:
+            await eng.dispose()
+
+    async def test_sample_values_skip_long_strings(
+        self, introspector: SchemaIntrospector
+    ) -> None:
+        """Values longer than MAX_SAMPLED_VALUE_LEN must be filtered out."""
+        from schema.introspector import MAX_SAMPLED_VALUE_LEN
+        eng = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
+        try:
+            async with eng.begin() as conn:
+                await conn.execute(text(
+                    "CREATE TABLE notes (id INTEGER PRIMARY KEY, note TEXT)"
+                ))
+                short = "ok"
+                too_long = "x" * (MAX_SAMPLED_VALUE_LEN + 1)
+                await conn.execute(
+                    text("INSERT INTO notes VALUES (:id, :note)"),
+                    [{"id": 1, "note": short}, {"id": 2, "note": too_long}],
+                )
+            schema = await introspector.introspect(eng)
+            tbl = next(t for t in schema.tables if t.name == "notes")
+            note = next(c for c in tbl.columns if c.name == "note")
+            assert note.sample_values == [short]
+        finally:
+            await eng.dispose()
+
+    async def test_empty_table_yields_empty_samples(
+        self, introspector: SchemaIntrospector
+    ) -> None:
+        eng = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
+        try:
+            async with eng.begin() as conn:
+                await conn.execute(text(
+                    "CREATE TABLE empty_t (id INTEGER PRIMARY KEY, x TEXT)"
+                ))
+            schema = await introspector.introspect(eng)
+            tbl = next(t for t in schema.tables if t.name == "empty_t")
+            x = next(c for c in tbl.columns if c.name == "x")
+            assert x.sample_values == []
+        finally:
+            await eng.dispose()
+
+    async def test_blob_columns_skipped(
+        self, introspector: SchemaIntrospector
+    ) -> None:
+        eng = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
+        try:
+            async with eng.begin() as conn:
+                await conn.execute(text(
+                    "CREATE TABLE files (id INTEGER PRIMARY KEY, "
+                    "data BLOB, name TEXT)"
+                ))
+                await conn.execute(
+                    text("INSERT INTO files (id, data, name) VALUES (1, :d, 'a.txt')"),
+                    [{"d": b"\x00\x01\x02"}],
+                )
+            schema = await introspector.introspect(eng)
+            tbl = next(t for t in schema.tables if t.name == "files")
+            data_col = next(c for c in tbl.columns if c.name == "data")
+            name_col = next(c for c in tbl.columns if c.name == "name")
+            assert data_col.sample_values == []
+            assert name_col.sample_values == ["a.txt"]
+        finally:
+            await eng.dispose()

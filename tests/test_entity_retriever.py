@@ -358,3 +358,94 @@ class TestEntityRetriever:
         ctx = retriever.retrieve("List actor first and last names")
         tables = {m.table for m in ctx.entity_matches}
         assert "actor" in tables
+
+
+# ---------------------------------------------------------------------------
+# Sample-value LSH integration (regression: previously ColumnSchema had no
+# sample_values field, so LSH always fell back to indexing column names)
+# ---------------------------------------------------------------------------
+
+def test_lsh_indexes_actual_sample_values() -> None:
+    """LSHEntityMatcher must index col.sample_values when populated.
+
+    With sample_values like ['RETAIL', 'CORP', 'SMB'] on a column named
+    'cust_seg_cd', a query token 'retail' should match the column via
+    its values, not via the column name (which doesn't contain 'retail').
+    """
+    from core.entity_retriever import LSHEntityMatcher
+    from core.models import AnnotatedSchema, ColumnSchema, TableSchema
+
+    schema = AnnotatedSchema(
+        db_url_hash="test",
+        tables=[
+            TableSchema(
+                name="customer",
+                columns=[
+                    ColumnSchema(
+                        name="cust_seg_cd",
+                        type="TEXT",
+                        sample_values=["RETAIL", "CORP", "SMB"],
+                    ),
+                    ColumnSchema(
+                        name="cust_name",
+                        type="TEXT",
+                        sample_values=["Alice", "Bob"],
+                    ),
+                ],
+            ),
+        ],
+    )
+
+    matcher = LSHEntityMatcher(schema)
+    matcher.build_index()
+    matches = matcher.match(["retail"])
+
+    assert any(
+        m.column == "cust_seg_cd" and "RETAIL" in m.matched_value.upper()
+        for m in matches
+    ), f"expected LSH to match 'retail' against RETAIL value; got: {matches}"
+
+
+def test_lsh_falls_back_to_column_name_when_no_samples() -> None:
+    """When sample_values is None (legacy path), LSH still uses col.name."""
+    from core.entity_retriever import LSHEntityMatcher
+    from core.models import AnnotatedSchema, ColumnSchema, TableSchema
+
+    schema = AnnotatedSchema(
+        db_url_hash="test",
+        tables=[
+            TableSchema(
+                name="orders",
+                columns=[
+                    ColumnSchema(name="order_id", type="INTEGER", sample_values=None),
+                ],
+            ),
+        ],
+    )
+    matcher = LSHEntityMatcher(schema)
+    matcher.build_index()
+    matches = matcher.match(["order"])
+    assert any(m.column == "order_id" for m in matches)
+
+
+def test_lsh_handles_empty_sample_values() -> None:
+    """sample_values=[] (column was skipped or empty) must not crash."""
+    from core.entity_retriever import LSHEntityMatcher
+    from core.models import AnnotatedSchema, ColumnSchema, TableSchema
+
+    schema = AnnotatedSchema(
+        db_url_hash="test",
+        tables=[
+            TableSchema(
+                name="t",
+                columns=[
+                    ColumnSchema(name="empty_col", type="TEXT", sample_values=[]),
+                    ColumnSchema(name="name_col", type="TEXT", sample_values=None),
+                ],
+            ),
+        ],
+    )
+    matcher = LSHEntityMatcher(schema)
+    matcher.build_index()
+    matches = matcher.match(["name"])
+    assert any(m.column == "name_col" for m in matches)
