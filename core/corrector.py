@@ -22,11 +22,12 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from core.logging import get_logger
 from core.models import (
     CorrectionStep,
+    ExecutionResult,
     FilteredSchema,
     SQLCandidate,
 )
 from core.utils import strip_fences
-from db.sandbox import ReadOnlySandbox
+from db.sandbox import ReadOnlySandbox, SecurityViolation
 from inference.base import LLMBackend
 from prompts.correction import ERROR_TAXONOMY, SYSTEM_PROMPT, build_correction_prompt
 
@@ -159,7 +160,20 @@ class TaxonomyCorrector:
             )
             corrected_sql = strip_fences(raw)
 
-            result = await self._sandbox.execute(corrected_sql, self._engine)
+            try:
+                result = await self._sandbox.execute(corrected_sql, self._engine)
+            except SecurityViolation as exc:
+                # Sandbox refused to run the candidate (unparseable, DDL, or
+                # multi-statement). Treat as a normal failure so the loop can
+                # try another correction or exhaust gracefully.
+                result = ExecutionResult(
+                    success=False,
+                    sql=corrected_sql,
+                    row_count=0,
+                    columns=[],
+                    sample_rows=[],
+                    error_message=f"sandbox rejected: {exc}",
+                )
 
             step = CorrectionStep(
                 iteration=iteration,

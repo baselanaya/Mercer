@@ -1,6 +1,15 @@
 """Tests for ReadOnlySandbox.
 
 All tests use SQLite in-memory via aiosqlite — no PostgreSQL required.
+
+The sandbox uses sqlglot AST validation, not keyword-grep, so the test
+matrix focuses on:
+  - DDL/DML rejection across statement types and dialects
+  - Statement-chaining rejection ("SELECT 1; DROP TABLE x")
+  - String-literal false-positive avoidance ("SELECT ... LIKE '%DROP%'")
+  - Comment-injection avoidance
+  - WITH ... SELECT acceptance
+  - UNION acceptance
 """
 
 from collections.abc import AsyncGenerator
@@ -10,7 +19,6 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from db.sandbox import (
-    BLOCKED_KEYWORDS,
     MAX_ROWS,
     SAMPLE_ROWS,
     ReadOnlySandbox,
@@ -54,14 +62,18 @@ async def schema_engine() -> AsyncGenerator[AsyncEngine, None]:
             "CREATE TABLE customer ("
             "  customer_id INTEGER PRIMARY KEY,"
             "  name TEXT NOT NULL,"
-            "  email TEXT"
+            "  email TEXT,"
+            "  notes TEXT"
             ")"
         ))
         await conn.execute(
-            text("INSERT INTO customer (customer_id, name, email) VALUES (:id, :name, :email)"),
+            text("INSERT INTO customer (customer_id, name, email, notes) "
+                 "VALUES (:id, :name, :email, :notes)"),
             [
-                {"id": 1, "name": "Alice", "email": "alice@example.com"},
-                {"id": 2, "name": "Bob",   "email": "bob@example.com"},
+                {"id": 1, "name": "Alice", "email": "alice@example.com",
+                 "notes": "please don't DROP my data"},
+                {"id": 2, "name": "Bob", "email": "bob@example.com",
+                 "notes": "CREATE your own design"},
             ],
         )
     yield eng
@@ -72,47 +84,149 @@ sandbox = ReadOnlySandbox()
 
 
 # ---------------------------------------------------------------------------
-# Blocked keyword tests
+# Forbidden statement-type rejection
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("keyword", sorted(BLOCKED_KEYWORDS))
-async def test_blocked_keyword_raises(keyword: str, engine: AsyncEngine) -> None:
-    """Every blocked keyword must raise SecurityViolation."""
-    # Build a statement that contains the keyword as a standalone token
-    sql = f"{keyword} INTO foo VALUES (1)"
-    with pytest.raises(SecurityViolation, match=keyword):
-        await sandbox.execute(sql, engine)
-
-
-@pytest.mark.parametrize("keyword", sorted(BLOCKED_KEYWORDS))
-async def test_blocked_keyword_lowercase(keyword: str, engine: AsyncEngine) -> None:
-    """Keyword check is case-insensitive."""
-    sql = f"{keyword.lower()} foo"
+@pytest.mark.parametrize("sql", [
+    "INSERT INTO customer (name) VALUES ('x')",
+    "UPDATE customer SET name = 'x' WHERE customer_id = 1",
+    "DELETE FROM customer WHERE customer_id = 1",
+    "DROP TABLE customer",
+    "CREATE TABLE foo (id INTEGER)",
+    "ALTER TABLE customer ADD COLUMN x TEXT",
+    "TRUNCATE TABLE customer",
+])
+async def test_ddl_dml_rejected(sql: str, engine: AsyncEngine) -> None:
+    """DDL and DML statements at the top level must be rejected."""
     with pytest.raises(SecurityViolation):
         await sandbox.execute(sql, engine)
 
 
-@pytest.mark.parametrize("keyword", sorted(BLOCKED_KEYWORDS))
-async def test_blocked_keyword_mixed_case(keyword: str, engine: AsyncEngine) -> None:
-    """Mixed-case keywords are caught."""
-    mixed = keyword[0].upper() + keyword[1:].lower()
-    sql = f"{mixed} foo"
+@pytest.mark.parametrize("sql", [
+    "insert into customer (name) values ('x')",
+    "DROP table customer",
+    "Update customer Set name = 'x'",
+])
+async def test_case_insensitive_rejection(sql: str, engine: AsyncEngine) -> None:
+    """Case variations must still be rejected — sqlglot is case-insensitive."""
     with pytest.raises(SecurityViolation):
         await sandbox.execute(sql, engine)
 
 
-async def test_keyword_inside_identifier_not_blocked(engine: AsyncEngine) -> None:
-    """'create_date' should not trigger the CREATE block."""
-    # create_date contains 'create' but as part of an identifier (word boundary safe)
-    # We just check that the sandbox doesn't raise SecurityViolation;
-    # the query itself may fail on missing table, but that's an execution error.
+# ---------------------------------------------------------------------------
+# Statement-chaining rejection
+# ---------------------------------------------------------------------------
+
+async def test_multi_statement_rejected(engine: AsyncEngine) -> None:
+    """SQL containing more than one top-level statement must be rejected."""
+    with pytest.raises(SecurityViolation, match="single statement"):
+        await sandbox.execute(
+            "SELECT 1; DROP TABLE customer", engine
+        )
+
+
+async def test_two_selects_rejected(engine: AsyncEngine) -> None:
+    """Even chaining two SELECTs is rejected — one statement per call."""
+    with pytest.raises(SecurityViolation, match="single statement"):
+        await sandbox.execute("SELECT 1; SELECT 2", engine)
+
+
+async def test_trailing_semicolon_allowed(engine: AsyncEngine) -> None:
+    """A single statement with a trailing semicolon parses as one statement."""
+    result = await sandbox.execute("SELECT 1;", engine)
+    assert result.success
+
+
+# ---------------------------------------------------------------------------
+# String-literal false-positive avoidance (the original-bug regression)
+# ---------------------------------------------------------------------------
+
+async def test_blocked_keyword_in_string_literal_allowed(
+    schema_engine: AsyncEngine,
+) -> None:
+    """A blocked keyword inside a string literal must NOT trigger rejection."""
+    # The 'notes' column contains the literal "please don't DROP my data".
+    # Old keyword-grep sandbox would reject this query as containing DROP.
     result = await sandbox.execute(
-        "SELECT create_date FROM nonexistent_table", engine
+        "SELECT customer_id FROM customer WHERE notes LIKE '%DROP%'",
+        schema_engine,
     )
-    # SecurityViolation was NOT raised — we get a normal execution failure
-    assert not result.success
-    assert result.error_message is not None
+    assert result.success, "AST validator must accept DROP inside a string literal"
+    assert result.row_count == 1
 
+
+async def test_blocked_keyword_in_column_name_allowed(
+    engine: AsyncEngine,
+) -> None:
+    """A column or alias named like a keyword (e.g. 'create_date') is allowed."""
+    result = await sandbox.execute(
+        "SELECT create_date FROM nonexistent", engine
+    )
+    assert not result.success  # execution failure
+    assert result.error_message is not None  # but not a SecurityViolation
+
+
+async def test_blocked_keyword_in_alias_allowed(engine: AsyncEngine) -> None:
+    result = await sandbox.execute(
+        "SELECT 1 AS drop_count", engine
+    )
+    assert result.success
+
+
+# ---------------------------------------------------------------------------
+# Comment-injection avoidance
+# ---------------------------------------------------------------------------
+
+async def test_block_comment_with_ddl_inside_subquery_rejected(
+    engine: AsyncEngine,
+) -> None:
+    """A DROP inside a subquery is still found by AST walk."""
+    sql = "SELECT (DROP TABLE foo) FROM customer"
+    with pytest.raises(SecurityViolation):
+        await sandbox.execute(sql, engine)
+
+
+async def test_dash_comment_does_not_hide_select(engine: AsyncEngine) -> None:
+    """Comments are stripped at parse time; a valid SELECT remains valid."""
+    result = await sandbox.execute(
+        "-- this is a comment\nSELECT 1", engine
+    )
+    assert result.success
+
+
+# ---------------------------------------------------------------------------
+# WITH/CTE and UNION acceptance
+# ---------------------------------------------------------------------------
+
+async def test_cte_with_select_allowed(populated_engine: AsyncEngine) -> None:
+    result = await sandbox.execute(
+        "WITH t AS (SELECT id FROM numbers WHERE id < 5) "
+        "SELECT * FROM t",
+        populated_engine,
+    )
+    assert result.success
+    assert result.row_count == 5
+
+
+async def test_union_allowed(engine: AsyncEngine) -> None:
+    result = await sandbox.execute(
+        "SELECT 1 AS x UNION SELECT 2 AS x", engine
+    )
+    assert result.success
+    assert result.row_count == 2
+
+
+async def test_select_subquery_allowed(populated_engine: AsyncEngine) -> None:
+    result = await sandbox.execute(
+        "SELECT id FROM numbers WHERE id IN (SELECT id FROM numbers WHERE id < 3)",
+        populated_engine,
+    )
+    assert result.success
+
+
+# ---------------------------------------------------------------------------
+# Plain SELECT acceptance
+# ---------------------------------------------------------------------------
 
 async def test_select_not_blocked(engine: AsyncEngine) -> None:
     """Plain SELECT is never blocked."""
@@ -125,14 +239,12 @@ async def test_select_not_blocked(engine: AsyncEngine) -> None:
 # ---------------------------------------------------------------------------
 
 async def test_row_limit_enforced(populated_engine: AsyncEngine) -> None:
-    """Fetching from a 200-row table must return at most MAX_ROWS rows."""
     result = await sandbox.execute("SELECT * FROM numbers", populated_engine)
     assert result.success
     assert result.row_count == MAX_ROWS
 
 
 async def test_row_count_below_limit(populated_engine: AsyncEngine) -> None:
-    """When actual rows < MAX_ROWS, all rows are returned."""
     result = await sandbox.execute(
         "SELECT * FROM numbers WHERE id < 10", populated_engine
     )
@@ -141,14 +253,12 @@ async def test_row_count_below_limit(populated_engine: AsyncEngine) -> None:
 
 
 async def test_sample_rows_capped(populated_engine: AsyncEngine) -> None:
-    """sample_rows must contain at most SAMPLE_ROWS entries regardless of row_count."""
     result = await sandbox.execute("SELECT * FROM numbers", populated_engine)
     assert result.success
     assert len(result.sample_rows) <= SAMPLE_ROWS
 
 
 async def test_sample_rows_small_result(schema_engine: AsyncEngine) -> None:
-    """When row_count < SAMPLE_ROWS, sample_rows == all rows."""
     result = await sandbox.execute("SELECT * FROM customer", schema_engine)
     assert result.success
     assert result.row_count == 2
@@ -208,15 +318,15 @@ async def test_empty_result(schema_engine: AsyncEngine) -> None:
     assert result.success
     assert result.row_count == 0
     assert result.sample_rows == []
-    assert result.columns == ["customer_id", "name", "email"]
+    assert result.columns == ["customer_id", "name", "email", "notes"]
 
 
 # ---------------------------------------------------------------------------
 # Execution error handling
 # ---------------------------------------------------------------------------
 
-async def test_bad_sql_returns_failure(engine: AsyncEngine) -> None:
-    """Malformed SQL returns ExecutionResult with success=False, not an exception."""
+async def test_missing_table_returns_failure(engine: AsyncEngine) -> None:
+    """SQL referencing a missing table parses fine, fails at exec time."""
     result = await sandbox.execute("SELECT * FROM nonexistent_table", engine)
     assert not result.success
     assert result.error_message is not None
@@ -224,10 +334,15 @@ async def test_bad_sql_returns_failure(engine: AsyncEngine) -> None:
     assert result.columns == []
 
 
-async def test_syntax_error_returns_failure(engine: AsyncEngine) -> None:
-    result = await sandbox.execute("SELEKT 1", engine)
-    assert not result.success
-    assert result.error_message is not None
+async def test_unparseable_sql_raises_security_violation(engine: AsyncEngine) -> None:
+    """SQL that no dialect can parse is rejected by the sandbox, not the DB.
+
+    This is a behavior change from the old keyword-grep sandbox: rather than
+    forwarding garbage to the database and reporting a syntax error, we
+    refuse to execute it at all.
+    """
+    with pytest.raises(SecurityViolation):
+        await sandbox.execute("SELEKT NOT EVEN CLOSE", engine)
 
 
 async def test_security_violation_is_not_swallowed(engine: AsyncEngine) -> None:
