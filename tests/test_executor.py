@@ -320,3 +320,107 @@ def test_pick_best_failed_returns_first_when_no_direct_cot() -> None:
         SQLCandidate(sql="s", strategy="divide_conquer"),
     ]
     assert _pick_best_failed(candidates).strategy == "plan_execute"
+
+
+# ---------------------------------------------------------------------------
+# EXPLAIN gate behavior
+# ---------------------------------------------------------------------------
+
+class TestExplainGate:
+    """The EXPLAIN gate short-circuits structurally broken SQL without a
+    real execution roundtrip; passing SQL still executes normally."""
+
+    async def test_valid_sql_executes_with_gate_enabled(
+        self, sqlite_engine: AsyncEngine
+    ) -> None:
+        executor = CandidateExecutor(
+            ReadOnlySandbox(), sqlite_engine, use_explain_gate=True
+        )
+        results = await executor.execute_all([_candidate("SELECT * FROM orders")])
+        assert results[0].execution_result is not None
+        assert results[0].execution_result.success
+        assert results[0].execution_result.row_count == 3
+
+    async def test_explain_failure_short_circuits_to_failed_result(
+        self, sqlite_engine: AsyncEngine
+    ) -> None:
+        """SQL that EXPLAIN cannot validate is failed without sandbox execution."""
+        executor = CandidateExecutor(
+            ReadOnlySandbox(), sqlite_engine, use_explain_gate=True
+        )
+        # Reference a column that doesn't exist — EXPLAIN catches this.
+        results = await executor.execute_all([
+            _candidate("SELECT no_such_column FROM orders")
+        ])
+        assert results[0].execution_result is not None
+        assert results[0].execution_result.success is False
+        assert results[0].execution_result.error_message is not None
+        # The error message comes from EXPLAIN, not the sandbox-rejected path.
+
+    async def test_explain_failure_on_unknown_table(
+        self, sqlite_engine: AsyncEngine
+    ) -> None:
+        executor = CandidateExecutor(
+            ReadOnlySandbox(), sqlite_engine, use_explain_gate=True
+        )
+        results = await executor.execute_all([
+            _candidate("SELECT * FROM no_such_table")
+        ])
+        assert results[0].execution_result is not None
+        assert results[0].execution_result.success is False
+        assert results[0].execution_result.error_message is not None
+
+    async def test_gate_can_be_disabled(self, sqlite_engine: AsyncEngine) -> None:
+        """When use_explain_gate=False, broken SQL is forwarded to the sandbox.
+
+        The sandbox itself still rejects it (sqlglot AST validation) for SQL
+        that's so malformed it can't parse. But for SQL that *parses* and
+        only fails at execute time (e.g. unknown column), the failure now
+        comes from the sandbox's actual execution path, not the gate.
+        """
+        executor = CandidateExecutor(
+            ReadOnlySandbox(), sqlite_engine, use_explain_gate=False
+        )
+        # This parses fine but fails at execution.
+        results = await executor.execute_all([
+            _candidate("SELECT * FROM no_such_table")
+        ])
+        assert results[0].execution_result is not None
+        assert results[0].execution_result.success is False
+
+    async def test_gate_filters_one_of_three_candidates(
+        self, sqlite_engine: AsyncEngine
+    ) -> None:
+        """Realistic candidate-mix scenario: gate eliminates the bad one,
+        the other two execute normally."""
+        executor = CandidateExecutor(
+            ReadOnlySandbox(), sqlite_engine, use_explain_gate=True
+        )
+        candidates = [
+            _candidate("SELECT * FROM orders", strategy="direct_cot"),
+            _candidate("SELECT bogus FROM orders", strategy="divide_conquer"),
+            _candidate("SELECT id, amount FROM orders", strategy="plan_execute"),
+        ]
+        results = await executor.execute_all(candidates)
+
+        successes = [
+            c for c in results
+            if c.execution_result and c.execution_result.success
+        ]
+        failures = [
+            c for c in results
+            if c.execution_result and not c.execution_result.success
+        ]
+        assert len(successes) == 2
+        assert len(failures) == 1
+        assert failures[0].strategy == "divide_conquer"
+
+    async def test_gate_default_is_enabled(self, sqlite_engine: AsyncEngine) -> None:
+        """The default constructor enables the gate."""
+        executor = CandidateExecutor(ReadOnlySandbox(), sqlite_engine)
+        # Behavior should match use_explain_gate=True
+        results = await executor.execute_all([
+            _candidate("SELECT no_such FROM orders")
+        ])
+        assert results[0].execution_result is not None
+        assert results[0].execution_result.success is False
