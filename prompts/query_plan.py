@@ -16,7 +16,8 @@ Expected LLM output (JSON only, no prose):
 
 from __future__ import annotations
 
-from core.models import FilteredSchema, JoinPath, TableSchema
+from core.models import FilteredSchema
+from prompts.m_schema import format_filtered_schema
 
 # ---------------------------------------------------------------------------
 # System prompt
@@ -97,39 +98,16 @@ FEW_SHOT_EXAMPLES: list[dict[str, str]] = [
 # Schema formatter (compact — avoids duplicating the full column-selection output)
 # ---------------------------------------------------------------------------
 
-def _format_join_path(jp: JoinPath) -> str:
+def _format_join_path(jp):  # type: ignore[no-untyped-def]
+    """Deprecated: kept as a shim for any external callers; uses M-Schema format."""
     return (
         f"  JOIN {jp.from_table} ON {jp.from_table}.{jp.from_column}"
         f" = {jp.to_table}.{jp.to_column}"
     )
 
 
-def _format_table(table: TableSchema) -> str:
-    col_parts = []
-    for col in table.columns:
-        flags: list[str] = []
-        if col.is_primary_key:
-            flags.append("PK")
-        if col.is_foreign_key:
-            flags.append("FK")
-        flag_str = f", {', '.join(flags)}" if flags else ""
-        col_parts.append(f"{col.name} ({col.type}{flag_str})")
-    cols_str = ", ".join(col_parts)
-    header = f"TABLE: {table.name}"
-    if table.description:
-        header += f"  -- {table.description}"
-    return f"{header}\n  COLUMNS: {cols_str}"
-
-
-def _format_filtered_schema(filtered: FilteredSchema) -> str:
-    blocks = [_format_table(t) for t in filtered.tables]
-    text = "\n\n".join(blocks)
-    if filtered.join_paths:
-        jp_lines = ["JOIN PATHS:"]
-        for jp in filtered.join_paths:
-            jp_lines.append(_format_join_path(jp))
-        text += "\n\n" + "\n".join(jp_lines)
-    return text
+# Format delegated to prompts.m_schema (M-Schema with inline sample values).
+_format_filtered_schema = format_filtered_schema
 
 
 # ---------------------------------------------------------------------------

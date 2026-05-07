@@ -10,7 +10,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from core.models import FilteredSchema, JoinPath, TableSchema
+from core.models import FilteredSchema
+from prompts.m_schema import format_filtered_schema
 
 # ---------------------------------------------------------------------------
 # Error taxonomy
@@ -38,39 +39,16 @@ SYSTEM_PROMPT = (
 # Schema formatters (compact — same style as query_plan.py)
 # ---------------------------------------------------------------------------
 
-def _format_join_path(jp: JoinPath) -> str:
+def _format_join_path(jp):  # type: ignore[no-untyped-def]
+    """Deprecated shim; M-Schema formatter is the source of truth."""
     return (
         f"  JOIN {jp.from_table} ON {jp.from_table}.{jp.from_column}"
         f" = {jp.to_table}.{jp.to_column}"
     )
 
 
-def _format_table(table: TableSchema) -> str:
-    col_parts: list[str] = []
-    for col in table.columns:
-        flags: list[str] = []
-        if col.is_primary_key:
-            flags.append("PK")
-        if col.is_foreign_key:
-            flags.append("FK")
-        flag_str = f", {', '.join(flags)}" if flags else ""
-        col_parts.append(f"{col.name} ({col.type}{flag_str})")
-    cols_str = ", ".join(col_parts)
-    header = f"TABLE: {table.name}"
-    if table.description:
-        header += f"  -- {table.description}"
-    return f"{header}\n  COLUMNS: {cols_str}"
-
-
-def _format_filtered_schema(filtered: FilteredSchema) -> str:
-    blocks = [_format_table(t) for t in filtered.tables]
-    text = "\n\n".join(blocks)
-    if filtered.join_paths:
-        jp_lines = ["JOIN PATHS:"]
-        for jp in filtered.join_paths:
-            jp_lines.append(_format_join_path(jp))
-        text += "\n\n" + "\n".join(jp_lines)
-    return text
+# Format delegated to prompts.m_schema (M-Schema with inline sample values).
+_format_filtered_schema = format_filtered_schema
 
 
 # ---------------------------------------------------------------------------

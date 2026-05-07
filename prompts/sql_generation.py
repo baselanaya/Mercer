@@ -9,12 +9,10 @@ from __future__ import annotations
 
 from core.models import (
     AnnotatedSchema,
-    ColumnSchema,
     FilteredSchema,
-    JoinPath,
     QueryPlan,
-    TableSchema,
 )
+from prompts.m_schema import format_filtered_schema, format_full_schema
 
 # ---------------------------------------------------------------------------
 # System prompt
@@ -57,73 +55,14 @@ FEW_SHOT_EXAMPLES: list[dict[str, str]] = [
 ]
 
 # ---------------------------------------------------------------------------
-# Shared column / table formatters
+# Schema rendering — delegates to prompts.m_schema (XiYan-SQL M-Schema format).
+# Sample values from ColumnSchema.sample_values are rendered inline next to
+# each column, which gives the LLM concrete examples for cryptic columns.
 # ---------------------------------------------------------------------------
 
-def _format_column(col: ColumnSchema) -> str:
-    parts = [f"  {col.name} ({col.type}"]
-    flags: list[str] = []
-    if col.is_primary_key:
-        flags.append("PK")
-    if col.is_foreign_key:
-        flags.append("FK")
-    if flags:
-        parts.append(f", {'/'.join(flags)}")
-    parts.append(")")
-    if col.description:
-        parts.append(f": {col.description}")
-    return "".join(parts)
-
-
-def _format_table(table: TableSchema) -> str:
-    lines: list[str] = [f"TABLE: {table.name}"]
-    if table.description:
-        lines.append(f"  -- {table.description}")
-    lines.append("  COLUMNS:")
-    for col in table.columns:
-        lines.append(_format_column(col))
-    return "\n".join(lines)
-
-
-def _format_join_path(jp: JoinPath) -> str:
-    return (
-        f"  JOIN {jp.from_table} ON {jp.from_table}.{jp.from_column}"
-        f" = {jp.to_table}.{jp.to_column}"
-    )
-
-
-# ---------------------------------------------------------------------------
-# Filtered-schema formatter (Phase 1+ default)
-# ---------------------------------------------------------------------------
-
-def _format_filtered_schema(filtered: FilteredSchema) -> str:
-    blocks = [_format_table(t) for t in filtered.tables]
-    text = "\n\n".join(blocks)
-
-    if filtered.join_paths:
-        jp_lines = ["JOIN PATHS (use these to connect the tables above):"]
-        for jp in filtered.join_paths:
-            jp_lines.append(_format_join_path(jp))
-        text += "\n\n" + "\n".join(jp_lines)
-
-    return text
-
-
-# ---------------------------------------------------------------------------
-# Full-schema formatter (Phase 0 fallback)
-# ---------------------------------------------------------------------------
-
-def _format_full_schema(schema: AnnotatedSchema) -> str:
-    blocks = [_format_table(t) for t in schema.tables]
-    text = "\n\n".join(blocks)
-
-    if schema.glossary:
-        glossary_lines = ["GLOSSARY (business term → SQL meaning):"]
-        for term, definition in schema.glossary.items():
-            glossary_lines.append(f"  {term} = {definition}")
-        text += "\n\n" + "\n".join(glossary_lines)
-
-    return text
+# Aliases preserved for any external import callers.
+_format_filtered_schema = format_filtered_schema
+_format_full_schema = format_full_schema
 
 
 # ---------------------------------------------------------------------------

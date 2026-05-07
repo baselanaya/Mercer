@@ -11,6 +11,7 @@ Expected LLM output (JSON only, no prose):
 from __future__ import annotations
 
 from core.models import EntityContext, TableSchema
+from prompts.m_schema import format_table
 
 # ---------------------------------------------------------------------------
 # System prompt
@@ -62,25 +63,11 @@ FEW_SHOT_EXAMPLES: list[dict[str, str]] = [
 ]
 
 # ---------------------------------------------------------------------------
-# Prompt builder
+# Prompt builder — schema rendering delegated to prompts.m_schema
 # ---------------------------------------------------------------------------
 
-def _format_table_columns(table: TableSchema) -> str:
-    col_parts = []
-    for col in table.columns:
-        flags = []
-        if col.is_primary_key:
-            flags.append("PK")
-        if col.is_foreign_key:
-            flags.append("FK")
-        flag_str = f" ({', '.join(flags)})" if flags else ""
-        desc_str = f": {col.description}" if col.description else ""
-        col_parts.append(f"{col.name}{flag_str}{desc_str}")
-    cols_str = ", ".join(col_parts)
-    header = f"TABLE: {table.name}"
-    if table.description:
-        header += f"\n  Description: {table.description}"
-    return f"{header}\n  Columns: {cols_str}"
+# Alias retained in case any external import calls it; M-Schema is the source of truth.
+_format_table_columns = format_table
 
 
 def build_prompt(
