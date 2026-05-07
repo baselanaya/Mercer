@@ -162,9 +162,18 @@ class MercerPipeline:
         )
 
         # Stage 4 — multi-candidate SQL generation
+        # We pass the expanded question (question + glossary parentheticals)
+        # in addition to the original. This is the E-SQL pattern: rewriting
+        # the question to inline schema-linked terms reliably improves
+        # generation accuracy on hard queries with little cost.
         _t = time.perf_counter()
         generator = CandidateGenerator(backend)
-        candidates = await generator.generate_candidates(question, filtered_schema, query_plan)
+        candidates = await generator.generate_candidates(
+            question=question,
+            expanded_question=entity_context.expanded_question,
+            filtered_schema=filtered_schema,
+            query_plan=query_plan,
+        )
         stage_timings["candidate_generation"] = round((time.perf_counter() - _t) * 1000, 3)
         logger.debug("stage4_complete", candidates=len(candidates))
 

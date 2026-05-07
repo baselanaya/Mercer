@@ -293,3 +293,52 @@ async def test_per_strategy_temperatures_are_passed_to_backend(
     # And it must match the STRATEGIES table exactly, in declared order
     expected = [s["temperature"] for s in STRATEGIES]
     assert temps == expected
+
+
+# ---------------------------------------------------------------------------
+# E-SQL question enrichment (expanded_question wired into Stage 4 prompts)
+# ---------------------------------------------------------------------------
+
+async def test_expanded_question_reaches_prompt_builders(
+    filtered_schema: FilteredSchema, query_plan: QueryPlan
+) -> None:
+    """When expanded_question is supplied, it (not the raw question) is
+    rendered into each strategy's prompt."""
+    backend = MagicMock()
+    backend.generate_batch = AsyncMock(return_value=_THREE_SQL)
+    gen = CandidateGenerator(backend)
+
+    raw_q = "show me top customers"
+    expanded = "show me top customers (revenue = SUM(payment.amount))"
+
+    await gen.generate_candidates(
+        question=raw_q,
+        filtered_schema=filtered_schema,
+        query_plan=query_plan,
+        expanded_question=expanded,
+    )
+
+    backend.generate_batch.assert_awaited_once()
+    prompts = backend.generate_batch.await_args.kwargs["prompts"]
+    # Every strategy's prompt must contain the expansion text
+    for p in prompts:
+        assert "revenue = SUM(payment.amount)" in p
+
+
+async def test_omitting_expanded_question_uses_original(
+    filtered_schema: FilteredSchema, query_plan: QueryPlan
+) -> None:
+    """Older call sites that pass only `question` keep working."""
+    backend = MagicMock()
+    backend.generate_batch = AsyncMock(return_value=_THREE_SQL)
+    gen = CandidateGenerator(backend)
+
+    await gen.generate_candidates(
+        question="raw text",
+        filtered_schema=filtered_schema,
+        query_plan=query_plan,
+    )
+
+    prompts = backend.generate_batch.await_args.kwargs["prompts"]
+    for p in prompts:
+        assert "raw text" in p

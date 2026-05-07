@@ -71,19 +71,34 @@ class CandidateGenerator:
         question: str,
         filtered_schema: FilteredSchema,
         query_plan: QueryPlan,
+        *,
+        expanded_question: str | None = None,
     ) -> list[SQLCandidate]:
         """Build all 3 prompts, dispatch via generate_batch, return SQLCandidates.
+
+        Args:
+            question: The original natural-language question.
+            filtered_schema: Tables and join paths selected by the linker.
+            query_plan: Structured SQL plan from Stage 3.
+            expanded_question: Optional E-SQL-style enrichment of the
+                question (e.g. with inline glossary expansions). Defaults
+                to ``question`` when not provided so older call sites keep
+                working.
 
         All strategies are submitted in a single generate_batch() call so the
         backend can parallelise them.  If a strategy's response is empty or
         the batch call raises, that candidate gets sql="" and score=-1.0.
         """
+        # E-SQL pattern: feed the enriched question to prompt builders. They
+        # decide whether to render the enrichment alongside the original.
+        prompt_question = expanded_question or question
+
         prompts: list[str] = []
         names: list[str] = []
         temperatures: list[float] = []
 
         for strat in STRATEGIES:
-            prompt = strat["builder"](question, filtered_schema, query_plan)
+            prompt = strat["builder"](prompt_question, filtered_schema, query_plan)
             prompts.append(prompt)
             names.append(strat["name"])
             temperatures.append(strat["temperature"])
