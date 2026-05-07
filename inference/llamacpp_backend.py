@@ -63,14 +63,19 @@ class LlamaCppBackend(LLMBackend):
         self,
         prompts: list[str],
         system: str,
-        temperature: float = 0.0,
+        temperature: float | list[float] = 0.0,
         max_tokens: int = 1024,
         is_json: bool = False,
     ) -> list[str]:
-        """Fan out concurrently — llama.cpp queues requests internally."""
+        """Fan out concurrently — llama.cpp queues requests internally.
+
+        Honors per-prompt temperatures when ``temperature`` is a list.
+        """
+        from inference.base import _expand_temperatures
+        temps = _expand_temperatures(temperature, len(prompts))
         results = await asyncio.gather(*(
-            self.generate(p, system, temperature, max_tokens, is_json)
-            for p in prompts
+            self.generate(p, system, t, max_tokens, is_json)
+            for p, t in zip(prompts, temps, strict=True)
         ))
         return list(results)
 

@@ -88,22 +88,22 @@ class CandidateGenerator:
             names.append(strat["name"])
             temperatures.append(strat["temperature"])
 
-        # All three prompts share the same system prompt and max_tokens.
-        # Temperature variation is requested on a per-strategy basis; since
-        # generate_batch uses a single temperature parameter we use the mean
-        # of the three — the per-strategy temperature difference is a hint for
-        # future native-batch backends that accept per-item temperatures.
-        # For backends that honour a single temperature, direct_cot's greedy
-        # 0.0 would be too restrictive, so we use the middle value 0.2.
+        # Per-strategy temperatures are honored natively now: direct_cot stays
+        # greedy at 0.0, divide_conquer samples lightly at 0.2, plan_execute at
+        # 0.3. This is the diversity signal the CHASE-SQL ensemble depends on.
         try:
             responses = await self._backend.generate_batch(
                 prompts=prompts,
                 system=SYSTEM_PROMPT,
-                temperature=temperatures[1],  # 0.2 — balanced default
+                temperature=temperatures,
                 max_tokens=1024,
             )
         except Exception:  # noqa: BLE001
-            logger.exception("candidate_batch_failed")
+            logger.exception(
+                "candidate_batch_failed",
+                strategies=names,
+                num_prompts=len(prompts),
+            )
             responses = [""] * len(STRATEGIES)
 
         candidates: list[SQLCandidate] = []

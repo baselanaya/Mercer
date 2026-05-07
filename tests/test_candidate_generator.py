@@ -264,3 +264,32 @@ async def test_all_empty_responses_all_negative_scores(
     gen = _make_generator(["", "", ""])
     candidates = await gen.generate_candidates("q", filtered_schema, query_plan)
     assert all(c.score == -1.0 for c in candidates)
+
+
+# ---------------------------------------------------------------------------
+# Per-strategy temperature dispatch (CHASE-SQL diversity contract)
+# ---------------------------------------------------------------------------
+
+async def test_per_strategy_temperatures_are_passed_to_backend(
+    filtered_schema: FilteredSchema, query_plan: QueryPlan
+) -> None:
+    """Each strategy's declared temperature must reach the backend.
+
+    Regression test: previously the dispatch site used a single median value
+    for all three strategies, which collapsed candidate diversity.
+    """
+    backend = MagicMock()
+    backend.generate_batch = AsyncMock(return_value=_THREE_SQL)
+    gen = CandidateGenerator(backend)
+
+    await gen.generate_candidates("q", filtered_schema, query_plan)
+
+    backend.generate_batch.assert_awaited_once()
+    kwargs = backend.generate_batch.await_args.kwargs
+    temps = kwargs["temperature"]
+
+    # Must be a list — not a single float
+    assert isinstance(temps, list), "temperature must be a per-strategy list"
+    # And it must match the STRATEGIES table exactly, in declared order
+    expected = [s["temperature"] for s in STRATEGIES]
+    assert temps == expected
