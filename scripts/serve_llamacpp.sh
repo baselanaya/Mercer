@@ -13,7 +13,9 @@
 #     https://abetlen.github.io/llama-cpp-python/whl/cu121
 #
 # Environment variables (override defaults):
-#   MODEL_PATH   — path to the .gguf file
+#   LOCAL_MODEL_PATH or MODEL_PATH — path to the .gguf file
+#                  (LOCAL_MODEL_PATH takes precedence; matches the
+#                  Settings.local_model_path field in config/settings.py)
 #   N_GPU_LAYERS — number of layers to offload to GPU (default: -1 = all)
 #   CTX_SIZE     — context window size in tokens (default: 8192)
 #   N_THREADS    — CPU threads for non-GPU work (default: 4)
@@ -22,7 +24,9 @@
 
 set -euo pipefail
 
-MODEL_PATH="${MODEL_PATH:-models/Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf}"
+DEFAULT_MODEL="models/Arctic-Text2SQL-R1-7B-IQ4_XS.gguf"
+
+MODEL_PATH="${LOCAL_MODEL_PATH:-${MODEL_PATH:-$DEFAULT_MODEL}}"
 N_GPU_LAYERS="${N_GPU_LAYERS:--1}"
 CTX_SIZE="${CTX_SIZE:-8192}"
 N_THREADS="${N_THREADS:-4}"
@@ -36,7 +40,12 @@ fi
 
 if [[ ! -f "$MODEL_PATH" ]]; then
   echo "ERROR: model not found at $MODEL_PATH"
-  echo "Download with:"
+  echo ""
+  echo "Recommended (best Text-to-SQL accuracy at 8 GB VRAM):"
+  echo "  huggingface-cli download mradermacher/Arctic-Text2SQL-R1-7B-i1-GGUF \\"
+  echo "    Arctic-Text2SQL-R1-7B.i1-IQ4_XS.gguf --local-dir models/"
+  echo ""
+  echo "Fallback (general-purpose Qwen2.5-Coder baseline):"
   echo "  huggingface-cli download bartowski/Qwen2.5-Coder-7B-Instruct-GGUF \\"
   echo "    Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf --local-dir models/"
   exit 1

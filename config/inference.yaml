@@ -1,10 +1,27 @@
 # config/inference.yaml
 # llama.cpp server settings and complexity routing thresholds.
+#
+# The recommended local model is Snowflake/Arctic-Text2SQL-R1-7B, a Qwen2.5-
+# Coder-7B-Instruct fine-tune trained with execution-based RL specifically
+# for Text-to-SQL. It scores ~68.9% on BIRD-dev compared to ~50% for the
+# off-the-shelf Qwen baseline at the same VRAM footprint. See
+# docs/custom-models.md for the swap rationale and benchmark notes.
 
 llamacpp:
   url: "http://localhost:8080"
-  model: "Qwen2.5-Coder-7B-Instruct-IQ4_XS.gguf"
+  # Default GGUF — overridable via the LOCAL_MODEL_PATH env var or the
+  # local_model_path setting in config/settings.py.
+  model: "Arctic-Text2SQL-R1-7B-IQ4_XS.gguf"
   max_tokens: 1024
+
+# Backward-compatible alias for the previous Qwen2.5-Coder-7B baseline.
+# Keep this around so existing deployments that have already downloaded
+# Qwen2.5-Coder don't break — they can override `llamacpp.model` to this
+# value, or set LOCAL_MODEL_PATH=models/Qwen2.5-Coder-7B-Instruct-IQ4_XS.gguf
+# in their .env.
+fallback_models:
+  qwen_coder_7b: "Qwen2.5-Coder-7B-Instruct-IQ4_XS.gguf"
+  qwen_coder_14b: "Qwen2.5-Coder-14B-Instruct-Q4_K_M.gguf"
 
 routing:
   thresholds:

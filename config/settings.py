@@ -19,13 +19,18 @@ class Settings(BaseSettings):
 
     # llama.cpp inference server (llama-server or llama-cpp-python)
     llamacpp_url: str = "http://localhost:8080"
+    # Path to the GGUF model file used by the llama.cpp server.
+    # Read by scripts/serve_llamacpp_turboquant.sh as the MODEL_PATH default
+    # and by docs to point users at the recommended SOTA SQL-tuned model.
+    # See docs/custom-models.md for the model selection rationale.
+    local_model_path: str = "models/Arctic-Text2SQL-R1-7B-IQ4_XS.gguf"
 
     # LLM API keys (used when inference_backend is "anthropic" or "openai")
     anthropic_api_key: str = ""
     openai_api_key: str = ""
 
     # Model names (overridable per environment)
-    anthropic_model: str = "claude-sonnet-4-6"
+    anthropic_model: str = "claude-opus-4-7"
     openai_model: str = "gpt-4.1"
 
     # Inference backend
