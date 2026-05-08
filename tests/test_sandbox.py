@@ -349,3 +349,82 @@ async def test_security_violation_is_not_swallowed(engine: AsyncEngine) -> None:
     """SecurityViolation must propagate — not be caught by the general handler."""
     with pytest.raises(SecurityViolation):
         await sandbox.execute("DROP TABLE foo", engine)
+
+
+# ---------------------------------------------------------------------------
+# Sync engine path — same contract as the async path, executed via to_thread.
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def sync_engine_with_data():
+    """Bare in-memory sync SQLite engine with two tables."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.pool import StaticPool
+
+    eng = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    with eng.begin() as conn:
+        conn.execute(text(
+            "CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, price REAL)"
+        ))
+        conn.execute(
+            text("INSERT INTO products (id, name, price) VALUES (:i, :n, :p)"),
+            [
+                {"i": 1, "n": "widget", "p": 9.99},
+                {"i": 2, "n": "gadget", "p": 19.99},
+                {"i": 3, "n": "thingy", "p": 4.50},
+            ],
+        )
+    yield eng
+    eng.dispose()
+
+
+async def test_sync_engine_select_returns_rows(sync_engine_with_data) -> None:
+    """The sandbox accepts a sync Engine and runs the sync path."""
+    result = await sandbox.execute("SELECT id, name FROM products", sync_engine_with_data)
+    assert result.success
+    assert result.row_count == 3
+    assert result.columns == ["id", "name"]
+
+
+async def test_sync_engine_row_limit_enforced(sync_engine_with_data) -> None:
+    """MAX_ROWS limit applies to the sync path too."""
+    # Use a UNION ALL trick to generate more than MAX_ROWS rows from a 3-row
+    # table — keeps the fixture small while still exercising the cap.
+    sql = (
+        "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i < 200) "
+        "SELECT i FROM n"
+    )
+    result = await sandbox.execute(sql, sync_engine_with_data)
+    assert result.success
+    assert result.row_count == MAX_ROWS
+
+
+async def test_sync_engine_sample_rows_capped(sync_engine_with_data) -> None:
+    result = await sandbox.execute("SELECT id, name FROM products", sync_engine_with_data)
+    assert result.success
+    assert len(result.sample_rows) <= SAMPLE_ROWS
+    assert all(isinstance(r, dict) for r in result.sample_rows)
+
+
+async def test_sync_engine_ddl_rejected(sync_engine_with_data) -> None:
+    """AST validation runs identically on the sync engine path."""
+    with pytest.raises(SecurityViolation):
+        await sandbox.execute("DROP TABLE products", sync_engine_with_data)
+
+
+async def test_sync_engine_unknown_table_returns_failure(sync_engine_with_data) -> None:
+    """Execution failure on the sync path returns a failed ExecutionResult."""
+    result = await sandbox.execute("SELECT * FROM nonexistent", sync_engine_with_data)
+    assert not result.success
+    assert result.error_message is not None
+    assert result.row_count == 0
+
+
+async def test_sync_engine_execution_time_populated(sync_engine_with_data) -> None:
+    result = await sandbox.execute("SELECT 1", sync_engine_with_data)
+    assert result.success
+    assert result.execution_time_ms >= 0.0

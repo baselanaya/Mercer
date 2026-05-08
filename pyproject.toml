@@ -47,11 +47,31 @@ omit = [
     "data/*",
     "docker/*",
     ".venv/*",
+    # Database adapter classes — exercised only against running DB services
+    # (Postgres / MySQL / SQLite / DuckDB), not in the unit-test suite. The
+    # real DB-bound coverage lives in tests/test_dvdrental_baseline.py via
+    # SQLAlchemy directly. The thin connector classes themselves are
+    # imported lazily and effectively constant.
+    "db/connectors/*",
 ]
 
 [tool.coverage.report]
 fail_under = 80
 show_missing = true
+# Branches we cannot exercise on CI runners (no GPU, no Triton, no torch):
+# the GPU paths in kernels/* always live behind one of the guards below.
+# CPU paths stay covered through the public factory functions which the
+# unit-test suite calls with USE_GPU forced to False.
+exclude_also = [
+    "if _TRITON_OK:",
+    "if _TORCH_OK:",
+    "if USE_GPU:",
+    "if self._use_gpu",
+    "@triton.jit",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "pragma: no cover",
+]
 
 [tool.ruff]
 target-version = "py311"
