@@ -11,7 +11,6 @@ from sqlalchemy.pool import StaticPool
 
 from db.explain import ExplainResult, ExplainRunner, _build_explain_sql, explain
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

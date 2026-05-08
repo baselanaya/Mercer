@@ -4,6 +4,7 @@
 
 [![Python](https://img.shields.io/badge/python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![License](https://img.shields.io/badge/license-MIT-D97757?style=flat-square)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/baselanaya/Mercer/ci.yml?branch=master&style=flat-square&label=CI)](https://github.com/baselanaya/Mercer/actions/workflows/ci.yml)
 [![Exec Accuracy](https://img.shields.io/badge/exec_accuracy-74%25-22c55e?style=flat-square)](#evaluation)
 [![llama.cpp](https://img.shields.io/badge/llama.cpp-local_GPU-D97757?style=flat-square)](https://github.com/ggerganov/llama.cpp)
 [![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)

@@ -4,15 +4,21 @@ Each entry is self-contained: sql_context has CREATE TABLE + INSERT statements,
 sql has gold SQL. We spin up an in-memory SQLite per question, run Mercer,
 then compare results.
 """
-import asyncio, json, random, time, sys, re
+import asyncio
+import contextlib
+import random
+import re
+import sys
+import time
 from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from datasets import load_dataset
-from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text as sa_text
+from sqlalchemy.ext.asyncio import create_async_engine
+
 from core.pipeline import MercerPipeline
 from schema.cache import SchemaCache
 
@@ -63,10 +69,8 @@ async def _setup_db(sql_context: str):
     stmts = [s.strip() for s in safe_ctx.split(";") if s.strip()]
     async with engine.begin() as conn:
         for stmt in stmts:
-            try:
+            with contextlib.suppress(Exception):
                 await conn.execute(sa_text(stmt))
-            except Exception:
-                pass  # skip unsupported DDL fragments
     return engine
 
 
@@ -148,7 +152,7 @@ async def run_eval():
                 except Exception:
                     result_match = False
 
-        except Exception as exc:
+        except Exception:
             latency_ms = round((time.monotonic() - t0) * 1000, 2)
             exec_success = False
             result_match = False

@@ -11,6 +11,22 @@ license = { text = "MIT" }
 requires-python = ">=3.11"
 dependencies = []
 
+# Pinned conservatively to avoid CI churn from minor releases. Bump when
+# upstream releases a feature we want; CI re-runs on every change so
+# regressions surface before they hit master.
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=5.0",
+]
+dev = [
+    "mercer[test]",
+    "ruff>=0.7",
+    "mypy>=1.13",
+    "types-PyYAML",
+]
+
 [project.urls]
 Homepage = "https://github.com/baselanaya/mercer"
 

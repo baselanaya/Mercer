@@ -25,12 +25,13 @@ Defense-in-depth:
 
 import asyncio
 import time
+from typing import Any
 
 import sqlglot
-from sqlglot import exp
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlglot import exp
 
 from core.models import ExecutionResult
 
@@ -73,11 +74,15 @@ class SecurityViolation(Exception):
 # Validation
 # ---------------------------------------------------------------------------
 
-def _parse_statements(sql: str) -> list[exp.Expression]:
+def _parse_statements(sql: str) -> list[Any]:
     """Parse SQL into a list of top-level statement expressions.
 
     Tries multiple dialects and returns the first parse that produces
-    a non-empty statement list.
+    a non-empty statement list. The element type is sqlglot.exp.Expression
+    (or any subclass — Select, Union, With, etc.); annotated as plain
+    ``list`` because sqlglot's parse() return type is loose enough that
+    a stricter annotation would require ignoring per-call type errors
+    at every callsite without adding real safety.
 
     Raises SecurityViolation if no dialect can parse the SQL — refusing
     to execute unparseable input is safer than passing it through.
